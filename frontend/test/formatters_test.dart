@@ -46,11 +46,22 @@ void main() {
 
   group('friendlyError', () {
     test('unwraps typed API errors and generic messages', () {
-      final api = ApiException(statusCode: 403, code: 'FORBIDDEN', message: 'Not authorized');
-      expect(friendlyError(api), 'Not authorized');
+      final api = ApiException(statusCode: 400, code: 'VALIDATION', message: 'Missing field');
+      expect(friendlyError(api), 'Missing field');
 
       final generic = StateError('boom');
       expect(friendlyError(generic), 'Bad state: boom');
+    });
+
+    test('adds an actionable hint to role-forbidden errors', () {
+      final api = ApiException(
+        statusCode: 403,
+        code: 'FORBIDDEN',
+        message: 'Your account role cannot access this resource.',
+      );
+      final msg = friendlyError(api);
+      expect(msg, contains('Your account role cannot access this resource.'));
+      expect(msg, contains('sign out and sign in with the correct account'));
     });
   });
 

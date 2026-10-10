@@ -79,6 +79,11 @@ class AuthRepository {
 
   /// Restore a cached session (tokens + user) without hitting the network.
   Future<User?> restoreSession() async {
+    // Load the persisted session into memory first so the token this instance
+    // sends always matches the cached user this instance displays. Without
+    // this, a second app window/tab logging in would overwrite the shared
+    // storage and this instance would send the wrong role's token.
+    await _tokens.loadSession();
     final userJson = await _tokens.userJson;
     if (userJson == null || userJson.isEmpty || userJson == 'null') return null;
     try {

@@ -97,7 +97,12 @@ String verificationLabel(String? verification) {
 
 /// Human-readable message for a thrown backend error.
 String friendlyError(Object error) {
-  if (error is ApiException) return error.message;
+  if (error is ApiException) {
+    if (error.isForbidden && error.code == 'FORBIDDEN') {
+      return '${error.message} You are signed in with an account that cannot use this feature — sign out and sign in with the correct account.';
+    }
+    return error.message;
+  }
   if (error is NetworkException) return error.message;
   return error.toString().replaceFirst('Exception: ', '');
 }
