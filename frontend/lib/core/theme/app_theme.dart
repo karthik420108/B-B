@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 /// Material 3 themes for the Health Wallet app (light + dark)
 /// Redesigned to match a minimalist, high-contrast, premium aesthetic.
@@ -7,8 +8,9 @@ class AppTheme {
 
   static const Color primaryText = Color(0xFF111111);
   static const Color secondaryText = Color(0xFF666666);
-  static const Color background = Color(0xFFF7F7F7);
+  static const Color background = Color(0xFFF9F8F4);
   static const Color cardBackground = Colors.white;
+  static const Color accentGreen = Color(0xFF386B52);
 
   // The gradient used for premium/primary actions (derived from inspiration)
   static const LinearGradient primaryGradient = LinearGradient(
@@ -51,17 +53,17 @@ class AppTheme {
           letterSpacing: -0.5,
         ),
       ),
-      textTheme: const TextTheme(
-        headlineLarge: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -1.0, height: 1.2),
-        headlineMedium: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.8, height: 1.2),
-        headlineSmall: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.5, height: 1.2),
-        titleLarge: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3),
-        titleMedium: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.2),
-        titleSmall: TextStyle(fontWeight: FontWeight.w700),
-        bodyLarge: TextStyle(fontWeight: FontWeight.w500, color: secondaryText),
-        bodyMedium: TextStyle(fontWeight: FontWeight.w500, color: secondaryText),
-        bodySmall: TextStyle(fontWeight: FontWeight.w500, color: secondaryText),
-        labelLarge: TextStyle(fontWeight: FontWeight.w600),
+      textTheme: TextTheme(
+        headlineLarge: GoogleFonts.syne(fontWeight: FontWeight.w800, letterSpacing: -1.0, height: 1.2, color: scheme.onSurface),
+        headlineMedium: GoogleFonts.syne(fontWeight: FontWeight.w800, letterSpacing: -0.8, height: 1.2, color: scheme.onSurface),
+        headlineSmall: GoogleFonts.syne(fontWeight: FontWeight.w800, letterSpacing: -0.5, height: 1.2, color: scheme.onSurface),
+        titleLarge: GoogleFonts.inter(fontWeight: FontWeight.w700, letterSpacing: -0.3, color: scheme.onSurface),
+        titleMedium: GoogleFonts.inter(fontWeight: FontWeight.w700, letterSpacing: -0.2, color: scheme.onSurface),
+        titleSmall: GoogleFonts.inter(fontWeight: FontWeight.w700, color: scheme.onSurface),
+        bodyLarge: GoogleFonts.inter(fontWeight: FontWeight.w500, color: secondaryText),
+        bodyMedium: GoogleFonts.inter(fontWeight: FontWeight.w500, color: secondaryText),
+        bodySmall: GoogleFonts.inter(fontWeight: FontWeight.w500, color: secondaryText),
+        labelLarge: GoogleFonts.inter(fontWeight: FontWeight.w600, color: scheme.onSurface),
       ),
       cardTheme: CardThemeData(
         elevation: 0,
@@ -122,9 +124,9 @@ class AppTheme {
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: scheme.primary);
+            return GoogleFonts.syne(fontSize: 12, fontWeight: FontWeight.w700, color: scheme.primary);
           }
-          return TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: scheme.primary.withOpacity(0.5));
+          return GoogleFonts.syne(fontSize: 12, fontWeight: FontWeight.w500, color: scheme.primary.withOpacity(0.5));
         }),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {

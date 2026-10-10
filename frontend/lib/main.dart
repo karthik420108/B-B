@@ -38,7 +38,7 @@ class _HealthWalletAppState extends ConsumerState<HealthWalletApp> {
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeProvider);
     return MaterialApp.router(
-      title: 'Health Wallet',
+      title: 'MedSync',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),

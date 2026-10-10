@@ -20,13 +20,17 @@ class HomeScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Hello, $userName 👋'),
+        title: Text('home', style: theme.textTheme.headlineMedium?.copyWith(fontSize: 28, letterSpacing: -1.2, fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
-            tooltip: 'Notifications',
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () => context.push('/notifications'),
+            icon: const CircleAvatar(
+              radius: 18,
+              backgroundColor: Colors.black,
+              child: Icon(Icons.person_outline, color: Colors.white, size: 20),
+            ),
+            onPressed: () => context.push('/profile'),
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: RefreshIndicator(
@@ -37,35 +41,54 @@ class HomeScreen extends ConsumerWidget {
           onReady: (data) => ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('OVERVIEW', style: theme.textTheme.labelSmall?.copyWith(letterSpacing: 1.5, color: theme.colorScheme.onSurface.withOpacity(0.6), fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Text('hello, ${userName.toLowerCase()} ', style: theme.textTheme.headlineLarge?.copyWith(fontSize: 32)),
+                      const Text('👋', style: TextStyle(fontSize: 28)),
+                      const Spacer(),
+                      IconButton(
+                        style: IconButton.styleFrom(backgroundColor: theme.colorScheme.surfaceContainerLow, shape: const CircleBorder()),
+                        icon: const Icon(Icons.notifications_none, color: Colors.black),
+                        onPressed: () => context.push('/notifications'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
               _QuickActions(
                 onCounts: data.counts,
                 reminderCount: schedules.value?.where((s) => s.isActive).length ?? 0,
               ),
-              const SizedBox(height: 16),
-              if (data.medicationAlerts != null && (data.medicationAlerts!.interactions.isNotEmpty || data.medicationAlerts!.duplicates.isNotEmpty)) ...[
-                _MedicationAlertCard(
-                  report: data.medicationAlerts!,
-                  onTap: () => context.push('/medications/safety'),
-                ),
-                const SizedBox(height: 16),
-              ],
-              SectionCard(
-                icon: Icons.event_outlined,
-                title: 'Upcoming appointments',
-                subtitle: data.upcomingAppointments.isEmpty ? 'No appointments scheduled' : null,
-                child: data.upcomingAppointments.isEmpty
-                    ? const SizedBox.shrink()
-                    : Column(
-                        children: data.upcomingAppointments.take(3).map((a) => ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              dense: true,
-                              leading: const Icon(Icons.event_available_outlined),
-                              title: Text(a.title.isEmpty ? 'Appointment' : a.title),
-                              subtitle: Text(a.providerName ?? ''),
-                              trailing: Text(formatDateTime(a.dateTime), style: theme.textTheme.bodySmall),
-                            )).toList(),
-                      ),
+              const SizedBox(height: 24),
+
+              _UpcomingAppointmentsCard(appointments: data.upcomingAppointments),
+              const SizedBox(height: 32),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('recent records', style: theme.textTheme.titleMedium?.copyWith(fontSize: 20)),
+                  TextButton(onPressed: () => context.go('/documents'), child: Text('see all', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold, color: Colors.black))),
+                ],
               ),
+              const SizedBox(height: 12),
+              if (data.recentDocuments.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(child: Text('No recent records found')),
+                )
+              else
+                Column(
+                  children: data.recentDocuments.take(4).map((d) => _RecentRecordTile(document: d)).toList(),
+                ),
+              const SizedBox(height: 24),
+              _DailyClarityCard(),
+              const SizedBox(height: 24),
               const SizedBox(height: 16),
               SectionCard(
                 icon: Icons.folder_open_outlined,
@@ -107,8 +130,8 @@ class _QuickActions extends StatelessWidget {
       children: [
         Expanded(
           child: _StatCard(
-            icon: Icons.alarm_outlined,
-            label: 'Reminders',
+            icon: Icons.description_outlined,
+            label: 'records',
             value: '$reminderCount',
             onTap: () => context.go('/reminders'),
           ),
@@ -116,8 +139,8 @@ class _QuickActions extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(
           child: _StatCard(
-            icon: Icons.folder_outlined,
-            label: 'Documents',
+            icon: Icons.folder_open_outlined,
+            label: 'documents',
             value: '$docs',
             onTap: () => context.go('/documents'),
           ),
@@ -126,7 +149,7 @@ class _QuickActions extends StatelessWidget {
         Expanded(
           child: _StatCard(
             icon: Icons.share_outlined,
-            label: 'Shares',
+            label: 'shares',
             value: '$shares',
             onTap: () => context.push('/share'),
           ),
@@ -145,26 +168,135 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(24),
       child: Ink(
         decoration: BoxDecoration(
-          color: theme.colorScheme.primaryContainer.withValues(alpha: 0.45),
-          borderRadius: BorderRadius.circular(16),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
+          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 8),
           child: Column(
             children: [
-              Icon(icon, color: theme.colorScheme.primary),
-              const SizedBox(height: 8),
-              Text(value, style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
-              Text(label, style: theme.textTheme.labelSmall),
+              Icon(icon, color: Colors.black, size: 24),
+              const SizedBox(height: 12),
+              Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black)),
+              const SizedBox(height: 4),
+              Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.black, letterSpacing: 0.5)),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _UpcomingAppointmentsCard extends StatelessWidget {
+  const _UpcomingAppointmentsCard({required this.appointments});
+  final List<Appointment> appointments;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(32),
+      ),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.calendar_today_outlined, color: Colors.white54, size: 16),
+              const SizedBox(width: 8),
+              Text('SCHEDULE', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.white54, letterSpacing: 1.2, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text('upcoming appointments', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white, fontSize: 20)),
+          const SizedBox(height: 8),
+          if (appointments.isEmpty)
+            Text('no appointments scheduled', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white54, fontSize: 16))
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: appointments.take(2).map((a) => Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Text('${a.title} - ${formatDateTime(a.dateTime)}', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white70, fontSize: 15)),
+              )).toList(),
+            ),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Text('peace of mind for today', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white54, fontWeight: FontWeight.w500)),
+              const Spacer(),
+              const CircleAvatar(radius: 4, backgroundColor: Color(0xFF8CD8A7)), // Light green dot
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecentRecordTile extends StatelessWidget {
+  const _RecentRecordTile({required this.document});
+  final DocumentSummary document;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: CircleAvatar(
+          backgroundColor: const Color(0xFFF9F8F4),
+          child: Icon(categoryIcon(document.category), color: Colors.black87),
+        ),
+        title: Text(document.originalName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+        subtitle: Text(formatDate(document.eventDate), style: const TextStyle(color: Colors.black54, fontSize: 13)),
+        trailing: _StatusDot(status: document.extractionStatus),
+        onTap: () => context.push('/documents/${document.id}'),
+      ),
+    );
+  }
+}
+
+class _DailyClarityCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3F2EB), // Slightly darker than background
+        borderRadius: BorderRadius.circular(32),
+      ),
+      padding: const EdgeInsets.all(24),
+      child: Row(
+        children: [
+          const CircleAvatar(
+            backgroundColor: Colors.white,
+            radius: 24,
+            child: Icon(Icons.spa_outlined, color: Colors.black87),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('DAILY CLARITY', style: Theme.of(context).textTheme.labelSmall?.copyWith(letterSpacing: 1.2, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                const Text('take a deep breath. your documents are orderly and safe.', style: TextStyle(color: Colors.black87, height: 1.3)),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

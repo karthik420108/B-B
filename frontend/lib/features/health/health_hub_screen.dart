@@ -42,20 +42,6 @@ class HealthHubScreen extends ConsumerWidget {
               onTap: () => context.push('/medications'),
             ),
             HubTile(
-              icon: Icons.warning_amber_outlined,
-              title: 'Medication alerts',
-              subtitle: 'Interactions & duplicate medications',
-              badge: alertCount,
-              onTap: () => context.push('/medications/safety'),
-            ),
-            HubTile(
-              icon: Icons.content_copy_outlined,
-              title: 'Duplicate test alerts',
-              subtitle: 'Repeated tests within a time window',
-              badge: duplicateCount,
-              onTap: () => context.push('/duplicates'),
-            ),
-            HubTile(
               icon: Icons.qr_code_2_outlined,
               title: 'Share with a doctor',
               subtitle: 'Time-limited, revocable access via QR / token',

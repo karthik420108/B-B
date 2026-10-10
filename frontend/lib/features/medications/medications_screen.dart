@@ -7,63 +7,77 @@ import '../../models/models.dart';
 import '../../providers/providers.dart';
 import '../../widgets/common_widgets.dart';
 
-class MedicationsScreen extends ConsumerWidget {
+class MedicationsScreen extends ConsumerStatefulWidget {
   const MedicationsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MedicationsScreen> createState() => _MedicationsScreenState();
+}
+
+class _MedicationsScreenState extends ConsumerState<MedicationsScreen> {
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final meds = ref.watch(medicationsProvider);
-    final safety = ref.watch(medicationSafetyProvider);
-    final alertCount = safety.value == null
-        ? 0
-        : safety.value!.interactions.length + safety.value!.duplicates.length;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Medications')),
       body: AsyncView<List<Medication>>(
         value: meds,
         onRetry: () => ref.refresh(medicationsProvider.future),
-        onReady: (items) => RefreshIndicator(
-          onRefresh: () async {
-            await Future.wait([
-              ref.refresh(medicationsProvider.future),
-              ref.refresh(medicationSafetyProvider.future),
-            ]);
-          },
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              if (alertCount > 0)
-                Card(
-                  color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.6),
-                  child: ListTile(
-                    title: Text('$alertCount ${alertCount == 1 ? 'safety alert' : 'safety alerts'} need review'),
-                    subtitle: const Text('Interactions and duplicate medications'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => context.push('/medications/safety'),
-                  ),
-                ),
-              if (alertCount > 0) const SizedBox(height: 16),
-              if (items.isEmpty)
-                const EmptyState(
-                  icon: Icons.medication_outlined,
-                  title: 'No medications recorded',
-                  subtitle: 'Medications from your documents will appear here after extraction and review.',
-                )
-              else
-                for (final section in _sections(items)) ...[
-                  Text(section.$1, style: Theme.of(context).textTheme.titleSmall?.copyWith(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 8),
-                  Card(
-                    child: Column(
-                      children: section.$2.map((m) => _MedicationTile(med: m)).toList(),
+        onReady: (items) {
+          final filteredItems = items.where((m) => m.name.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
+          return RefreshIndicator(
+            onRefresh: () async {
+              await ref.refresh(medicationsProvider.future);
+            },
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                TextField(
+                  controller: _searchController,
+                  onChanged: (val) => setState(() => _searchQuery = val),
+                  decoration: InputDecoration(
+                    hintText: 'Search medications...',
+                    prefixIcon: const Icon(Icons.search),
+                    fillColor: Colors.white,
+                    filled: true,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
                     ),
                   ),
-                  const SizedBox(height: 16),
-                ],
-            ],
-          ),
-        ),
+                ),
+                const SizedBox(height: 16),
+                if (filteredItems.isEmpty)
+                  const EmptyState(
+                    icon: Icons.medication_outlined,
+                    title: 'No medications found',
+                    subtitle: 'Try a different search or add a medication document.',
+                  )
+                else
+                  for (final section in _sections(filteredItems)) ...[
+                    Text(section.$1, style: Theme.of(context).textTheme.titleSmall?.copyWith(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 8),
+                    Card(
+                      child: Column(
+                        children: section.$2.map((m) => _MedicationTile(med: m)).toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+              ],
+            ),
+          );
+        },
       ),
     );
   }
