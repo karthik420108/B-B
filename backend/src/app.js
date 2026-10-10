@@ -18,14 +18,10 @@ function createApp() {
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
   app.use(cors({
-    origin(origin, cb) {
-      // Allow same-origin/no-origin (curl, mobile) and configured web origins.
-      if (!origin || config.corsOrigins.includes(origin) || config.env !== 'production') return cb(null, true);
-      return cb(null, false);
-    },
-    credentials: true,
-    exposedHeaders: ['Content-Disposition'],
-  }));
+  origin: true, // allow any origin
+  credentials: true,
+  exposedHeaders: ['Content-Disposition'],
+}));
 
   // Small body limit; uploads use multipart instead.
   app.use(express.json({ limit: '1mb' }));

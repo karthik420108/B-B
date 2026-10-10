@@ -120,9 +120,21 @@ class S3Storage {
 let instance = null;
 function getStorage() {
   if (instance) return instance;
-  instance = config.storage.driver === 's3'
-    ? new S3Storage(config.storage.s3)
-    : new LocalStorage(config.storage.localDir);
+  switch (config.storage.driver) {
+    case 's3':
+      instance = new S3Storage(config.storage.s3);
+      break;
+    case 'cloudinary':
+      const CloudinaryStorage = require('./cloudinaryStorage');
+      instance = new CloudinaryStorage({
+        cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+        apiKey: process.env.CLOUDINARY_API_KEY,
+        apiSecret: process.env.CLOUDINARY_API_SECRET,
+      });
+      break;
+    default:
+      instance = new LocalStorage(config.storage.localDir);
+  }
   return instance;
 }
 
