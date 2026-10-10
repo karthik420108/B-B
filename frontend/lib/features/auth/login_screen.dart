@@ -69,11 +69,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     setState(() {});
   }
 
-  Future<void> _handleGoogleSignIn() async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Google Sign-In requires backend configuration and missing platform dependencies.'))
-    );
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -100,23 +96,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 48),
-                    OutlinedButton.icon(
-                      onPressed: _busy ? null : _handleGoogleSignIn,
-                      icon: const Icon(Icons.g_mobiledata_rounded, size: 32),
-                      label: const Text('Continue with Google'),
-                    ),
-                    const SizedBox(height: 24),
-                    Row(
-                      children: [
-                        const Expanded(child: Divider()),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Text('or', style: theme.textTheme.bodyMedium),
-                        ),
-                        const Expanded(child: Divider()),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
+
                     TextFormField(
                       controller: _email,
                       keyboardType: TextInputType.emailAddress,

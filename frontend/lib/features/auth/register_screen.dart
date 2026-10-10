@@ -96,11 +96,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
   }
 
-  Future<void> _handleGoogleSignIn() async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Google Sign-In requires backend configuration and missing platform dependencies.'))
-    );
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -117,23 +113,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               children: [
                 Text('Create your\nhealth wallet', style: theme.textTheme.headlineLarge?.copyWith(fontSize: 32, letterSpacing: -1.0)),
                 const SizedBox(height: 32),
-                OutlinedButton.icon(
-                  onPressed: _busy ? null : _handleGoogleSignIn,
-                  icon: const Icon(Icons.g_mobiledata_rounded, size: 32),
-                  label: const Text('Continue with Google'),
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    const Expanded(child: Divider()),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text('or', style: theme.textTheme.bodyMedium),
-                    ),
-                    const Expanded(child: Divider()),
-                  ],
-                ),
-                const SizedBox(height: 24),
+
                 SegmentedButton<String>(
                   segments: const [
                     ButtonSegment(value: 'patient', label: Text('Patient'), icon: Icon(Icons.person_outline_rounded)),
