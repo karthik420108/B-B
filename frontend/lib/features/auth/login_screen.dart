@@ -18,9 +18,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _password = TextEditingController();
   bool _obscure = true;
   bool _busy = false;
-
-  /// UI-only role choice. The backend never trusts it — it returns the account's
-  /// actual role and we show a message if the selection does not match.
   String _selectedRole = 'patient';
 
   @override
@@ -38,15 +35,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       await auth.login(email: _email.text, password: _password.text);
       final state = ref.read(authProvider);
       if (!mounted) return;
-      // The server decides the real role. If the user picked the wrong side,
-      // say so explicitly instead of silently landing on the other dashboard.
       if (_selectedRole == 'doctor' && !state.isDoctor) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('This email is registered as a patient account. You will enter the patient view.')),
+          const SnackBar(content: Text('This email is registered as a patient account.')),
         );
       } else if (_selectedRole == 'patient' && state.isDoctor) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('This email is registered as a doctor account. You will enter the doctor view.')),
+          const SnackBar(content: Text('This email is registered as a doctor account.')),
         );
       }
       if (!mounted) return;
@@ -74,6 +69,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     setState(() {});
   }
 
+  Future<void> _handleGoogleSignIn() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Google Sign-In requires backend configuration and missing platform dependencies.'))
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -81,108 +82,95 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
+              constraints: const BoxConstraints(maxWidth: 400),
               child: Form(
                 key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    CircleAvatar(
-                      radius: 34,
-                      backgroundColor: theme.colorScheme.primaryContainer,
-                      foregroundColor: theme.colorScheme.onPrimaryContainer,
-                      child: const Icon(Icons.health_and_safety_outlined, size: 34),
+                    Text(
+                      'meet health.\nyour medical\ncompanion',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.headlineLarge?.copyWith(
+                        fontSize: 36,
+                        height: 1.1,
+                        letterSpacing: -1.5,
+                      ),
                     ),
-                    const SizedBox(height: 16),
-                    Text('Welcome back', textAlign: TextAlign.center, style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 4),
-                    Text('Sign in to your health wallet', textAlign: TextAlign.center, style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.outline)),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 48),
+                    OutlinedButton.icon(
+                      onPressed: _busy ? null : _handleGoogleSignIn,
+                      icon: const Icon(Icons.g_mobiledata_rounded, size: 32),
+                      label: const Text('Continue with Google'),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        const Expanded(child: Divider()),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Text('or', style: theme.textTheme.bodyMedium),
+                        ),
+                        const Expanded(child: Divider()),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
                     TextFormField(
                       controller: _email,
                       keyboardType: TextInputType.emailAddress,
                       autofillHints: const [AutofillHints.email],
-                      decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.mail_outline)),
+                      decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.mail_outline_rounded)),
                       validator: (v) => (v == null || v.trim().isEmpty || !v.contains('@')) ? 'Enter a valid email' : null,
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 16),
                     TextFormField(
                       controller: _password,
                       obscureText: _obscure,
                       autofillHints: const [AutofillHints.password],
                       decoration: InputDecoration(
                         labelText: 'Password',
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility), onPressed: () => setState(() => _obscure = !_obscure)),
+                        prefixIcon: const Icon(Icons.lock_outline_rounded),
+                        suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined), onPressed: () => setState(() => _obscure = !_obscure)),
                       ),
                       validator: (v) => (v == null || v.length < 8) ? 'At least 8 characters' : null,
                       onFieldSubmitted: (_) => _submit(),
                     ),
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(onPressed: () => context.push('/forgot-password'), child: const Text('Forgot password?')),
-                    ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 16),
                     FilledButton(
                       onPressed: _busy ? null : _submit,
-                      child: _busy ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Sign in'),
+                      child: _busy ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Sign in'),
                     ),
-                    const SizedBox(height: 12),
-                    OutlinedButton(
+                    const SizedBox(height: 16),
+                    TextButton(
+                      onPressed: () => context.push('/forgot-password'),
+                      child: Text('Forgot password?', style: TextStyle(color: theme.colorScheme.onSurface)),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
                       onPressed: _busy ? null : () => context.push('/register'),
-                      child: const Text('Create an account'),
+                      child: Text('Create an account', style: TextStyle(color: theme.colorScheme.onSurface)),
                     ),
-                    const SizedBox(height: 24),
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Signing in as', style: theme.textTheme.labelMedium),
-                            const SizedBox(height: 8),
-                            SegmentedButton<String>(
-                              segments: const [
-                                ButtonSegment(value: 'patient', label: Text('Patient'), icon: Icon(Icons.person_outline)),
-                                ButtonSegment(value: 'doctor', label: Text('Doctor'), icon: Icon(Icons.medical_services_outlined)),
-                              ],
-                              selected: {_selectedRole},
-                              onSelectionChanged: (s) => setState(() => _selectedRole = s.first),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              _selectedRole == 'doctor'
-                                  ? 'Doctor view is only for verified doctor accounts.'
-                                  : 'Patients manage and share their own health records.',
-                              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline),
-                            ),
-                            const Divider(height: 24),
-                            Text('Demo accounts (seeded)', style: theme.textTheme.labelMedium),
-                            const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                ActionChip(
-                                  avatar: const Icon(Icons.person_outline, size: 16),
-                                  label: const Text('Patient demo'),
-                                  onPressed: () => _fillDemo('patient'),
-                                ),
-                                ActionChip(
-                                  avatar: const Icon(Icons.medical_services_outlined, size: 16),
-                                  label: const Text('Doctor demo'),
-                                  onPressed: () => _fillDemo('doctor'),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text('Password: DemoPass123!', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline)),
-                          ],
+                    const SizedBox(height: 32),
+                    Text('Demo accounts (seeded)', style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.outline)),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      alignment: WrapAlignment.center,
+                      children: [
+                        ActionChip(
+                          avatar: const Icon(Icons.person_outline_rounded, size: 16),
+                          label: const Text('Patient'),
+                          onPressed: () => _fillDemo('patient'),
                         ),
-                      ),
+                        ActionChip(
+                          avatar: const Icon(Icons.medical_services_outlined, size: 16),
+                          label: const Text('Doctor'),
+                          onPressed: () => _fillDemo('doctor'),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -193,4 +181,4 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       ),
     );
   }
-}
+}

@@ -48,71 +48,88 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
   }
 
+  Future<void> _handleGoogleSignIn() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Google Sign-In requires backend configuration and missing platform dependencies.'))
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Create account')),
+      appBar: AppBar(backgroundColor: Colors.transparent),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Your personal health wallet', style: theme.textTheme.bodyMedium),
-                const SizedBox(height: 20),
+                Text('Create your\nhealth wallet', style: theme.textTheme.headlineLarge?.copyWith(fontSize: 32, letterSpacing: -1.0)),
+                const SizedBox(height: 32),
+                OutlinedButton.icon(
+                  onPressed: _busy ? null : _handleGoogleSignIn,
+                  icon: const Icon(Icons.g_mobiledata_rounded, size: 32),
+                  label: const Text('Continue with Google'),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    const Expanded(child: Divider()),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text('or', style: theme.textTheme.bodyMedium),
+                    ),
+                    const Expanded(child: Divider()),
+                  ],
+                ),
+                const SizedBox(height: 24),
                 TextFormField(
                   controller: _name,
                   textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(labelText: 'Full name', prefixIcon: Icon(Icons.person_outline)),
+                  decoration: const InputDecoration(labelText: 'Full name', prefixIcon: Icon(Icons.person_outline_rounded)),
                   validator: (v) => (v == null || v.trim().length < 2) ? 'Enter your name' : null,
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 16),
                 TextFormField(
                   controller: _email,
                   keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.mail_outline)),
+                  decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.mail_outline_rounded)),
                   validator: (v) => (v == null || !v.contains('@')) ? 'Enter a valid email' : null,
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 16),
                 TextFormField(
                   controller: _password,
                   obscureText: _obscure,
                   decoration: InputDecoration(
                     labelText: 'Password',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility), onPressed: () => setState(() => _obscure = !_obscure)),
+                    prefixIcon: const Icon(Icons.lock_outline_rounded),
+                    suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined), onPressed: () => setState(() => _obscure = !_obscure)),
                     helperText: 'At least 8 characters.',
                   ),
                   validator: (v) => (v == null || v.length < 8) ? 'At least 8 characters' : null,
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 16),
                 TextFormField(
                   controller: _confirm,
                   obscureText: _obscure,
-                  decoration: const InputDecoration(labelText: 'Confirm password', prefixIcon: Icon(Icons.lock_outline)),
+                  decoration: const InputDecoration(labelText: 'Confirm password', prefixIcon: Icon(Icons.lock_outline_rounded)),
                   validator: (v) => v != _password.text ? 'Passwords do not match' : null,
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 32),
                 FilledButton(
                   onPressed: _busy ? null : _submit,
-                  child: _busy ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Create account'),
+                  child: _busy ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Create account'),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text('Already have an account?', style: theme.textTheme.bodySmall),
-                    TextButton(onPressed: () => context.go('/login'), child: const Text('Sign in')),
+                    TextButton(onPressed: () => context.go('/login'), child: Text('Sign in', style: TextStyle(color: theme.colorScheme.onSurface))),
                   ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'By creating an account you agree that demo data used here is fictional and for demonstration only.',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline),
                 ),
               ],
             ),
@@ -121,4 +138,4 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       ),
     );
   }
-}
+}

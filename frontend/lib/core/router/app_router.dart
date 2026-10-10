@@ -9,7 +9,7 @@ import '../../features/onboarding/onboarding_screen.dart';
 import '../../features/splash/splash_screen.dart';
 import '../../features/shell/patient_shell.dart';
 import '../../features/home/home_screen.dart';
-import '../../features/timeline/timeline_screen.dart';
+import '../../features/schedule/schedule_screen.dart';
 import '../../features/documents/documents_screen.dart';
 import '../../features/documents/document_detail_screen.dart';
 import '../../features/documents/upload_screen.dart';
@@ -86,7 +86,7 @@ GoRouter createRouter(WidgetRef ref) {
         builder: (context, state, child) => PatientShell(child: child),
         routes: [
           GoRoute(path: '/home', builder: (c, s) => const HomeScreen()),
-          GoRoute(path: '/timeline', builder: (c, s) => const TimelineScreen()),
+          GoRoute(path: '/schedule', builder: (c, s) => const ScheduleScreen()),
           GoRoute(path: '/documents', builder: (c, s) => const DocumentsScreen()),
           GoRoute(path: '/assistant', builder: (c, s) => const AssistantScreen()),
           GoRoute(path: '/health', builder: (c, s) => const HealthHubScreen()),
