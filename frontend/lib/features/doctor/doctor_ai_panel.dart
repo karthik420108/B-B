@@ -3,7 +3,9 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../core/utils/file_saver.dart';
 import '../../core/utils/formatters.dart';
 import '../../models/models.dart';
 import '../../providers/providers.dart';
@@ -217,11 +219,8 @@ class _DoctorAiPanelState extends ConsumerState<DoctorAiPanel> {
     );
   }
 
-  Future<void> _viewDocument(DocumentSummary doc) async {
-    await showDialog<void>(
-      context: context,
-      builder: (c) => DoctorDocumentDialog(doc: doc, token: widget.shareIdOrToken),
-    );
+  void _viewDocument(DocumentSummary doc) {
+    context.push('/doctor/${widget.shareIdOrToken}/document/${doc.id}', extra: doc);
   }
 
   @override
@@ -666,7 +665,25 @@ class _DoctorDocumentDialogState extends ConsumerState<DoctorDocumentDialog> {
           ),
         ),
       ),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
+      actions: [
+        if (_bytes != null && _bytes!.isNotEmpty) ...[
+          FilledButton.icon(
+            onPressed: () {
+              downloadFile(_bytes!, widget.doc.originalName, widget.doc.mimeType);
+            },
+            icon: const Icon(Icons.download, size: 16),
+            label: const Text('Download'),
+          ),
+          OutlinedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              context.push('/doctor/${widget.token}/document/${widget.doc.id}', extra: widget.doc);
+            },
+            child: const Text('Open full page'),
+          ),
+        ],
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+      ],
     );
   }
 }

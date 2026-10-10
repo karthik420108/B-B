@@ -53,7 +53,14 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
       if (leave != true || !mounted) return;
     }
     if (!mounted) return;
-    context.go('/documents/${widget.id}');
+    // Return to the document. Prefer popping (we were pushed from it) so the
+    // document keeps its own history; fall back to a location change.
+    final nav = Navigator.of(context);
+    if (nav.canPop()) {
+      nav.pop();
+    } else {
+      context.go('/documents/${widget.id}');
+    }
   }
 
   Future<void> _submit({
@@ -107,7 +114,19 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
     final allDone = total > 0 && remaining == 0;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Review & verify')),
+      appBar: AppBar(
+        title: const Text('Review & verify'),
+        leading: BackButton(
+          onPressed: () {
+            final nav = Navigator.of(context);
+            if (nav.canPop()) {
+              nav.pop();
+            } else {
+              context.go('/documents/${widget.id}');
+            }
+          },
+        ),
+      ),
       // Persistent action bar: every record saves individually, so this is the
       // way out of the screen (and the summary of how much is left).
       bottomNavigationBar: SafeArea(

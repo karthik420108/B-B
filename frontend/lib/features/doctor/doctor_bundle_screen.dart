@@ -87,11 +87,8 @@ class RefView extends ConsumerStatefulWidget {
 }
 
 class _RefViewState extends ConsumerState<RefView> {
-  Future<void> _viewDocument(DocumentSummary doc) async {
-    await showDialog<void>(
-      context: context,
-      builder: (c) => DoctorDocumentDialog(doc: doc, token: widget.token),
-    );
+  void _viewDocument(DocumentSummary doc) {
+    context.push('/doctor/${widget.token}/document/${doc.id}', extra: doc);
   }
 
   @override

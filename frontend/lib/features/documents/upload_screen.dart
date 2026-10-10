@@ -232,7 +232,7 @@ class _SuccessSheet extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: FilledButton(
-              onPressed: () => context.go('/documents/$id/review'),
+              onPressed: () => context.push('/documents/$id/review'),
               child: const Text('Review & verify'),
             ),
           ),
@@ -240,7 +240,7 @@ class _SuccessSheet extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton(
-              onPressed: () => context.go('/documents/$id'),
+              onPressed: () => context.push('/documents/$id'),
               child: const Text('View document'),
             ),
           ),
