@@ -32,11 +32,40 @@ class _CreateShareScreenState extends ConsumerState<CreateShareScreen> {
   bool _includeDuplicateAlerts = true;
   bool _busy = false;
   bool _doctorListLoaded = false;
+  List<DocumentSummary> _documents = [];
+  final Set<String> _selectedDocIds = {};
+  bool _documentsLoaded = false;
+  bool _documentsLoading = false;
+  String? _documentsError;
 
   @override
   void dispose() {
     _label.dispose();
     super.dispose();
+  }
+
+  /// Load the patient's records so they can pick exactly what to share.
+  Future<void> _loadDocuments() async {
+    if (_documentsLoaded || _documentsLoading) return;
+    setState(() {
+      _documentsLoading = true;
+      _documentsError = null;
+    });
+    try {
+      final result = await ref.read(documentsRepositoryProvider).list();
+      if (!mounted) return;
+      setState(() {
+        _documents = result.items;
+        _documentsLoaded = true;
+        _documentsLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _documentsLoading = false;
+        _documentsError = friendlyError(e);
+      });
+    }
   }
 
   Future<void> _loadDoctors() async {
@@ -123,7 +152,10 @@ class _CreateShareScreenState extends ConsumerState<CreateShareScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadDoctors());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadDoctors();
+      _loadDocuments();
+    });
   }
 
   Future<void> _create() async {
@@ -131,6 +163,7 @@ class _CreateShareScreenState extends ConsumerState<CreateShareScreen> {
     try {
       final payload = <String, dynamic>{
         'label': _label.text.trim().isEmpty ? null : _label.text.trim(),
+        'documentIds': _includeAll ? const <String>[] : _selectedDocIds.toList(),
         'includeAll': _includeAll,
         'includeSummary': _includeSummary,
         'includeTimeline': _includeTimeline,
@@ -265,6 +298,79 @@ class _CreateShareScreenState extends ConsumerState<CreateShareScreen> {
                     value: _valueOf(key),
                     onChanged: (v) => _setValueOf(key, v),
                   ),
+              if (!_includeAll) ...[
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(child: Text('Records to share', style: theme.textTheme.titleSmall)),
+                    if (_documents.isNotEmpty)
+                      TextButton(
+                        onPressed: () => setState(() {
+                          if (_selectedDocIds.length == _documents.length) {
+                            _selectedDocIds.clear();
+                          } else {
+                            _selectedDocIds
+                              ..clear()
+                              ..addAll(_documents.map((d) => d.id));
+                          }
+                        }),
+                        child: Text(_selectedDocIds.length == _documents.length ? 'Clear all' : 'Select all'),
+                      ),
+                  ],
+                ),
+                Text(
+                  _documents.isEmpty
+                      ? 'The doctor will only ever see the records you select here.'
+                      : 'Pick the records the doctor may open — ${_selectedDocIds.length} of ${_documents.length} selected.',
+                  style: theme.textTheme.bodySmall,
+                ),
+                const SizedBox(height: 4),
+                if (_documentsLoading)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (_documentsError != null)
+                  Row(
+                    children: [
+                      Expanded(child: Text(_documentsError!, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error))),
+                      TextButton(onPressed: _loadDocuments, child: const Text('Retry')),
+                    ],
+                  )
+                else if (_documents.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      'You have no records yet. Enable "Include ALL records", or upload a document first, then try again.',
+                      style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline),
+                    ),
+                  )
+                else
+                  for (final d in _documents)
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      value: _selectedDocIds.contains(d.id),
+                      onChanged: (v) => setState(() {
+                        if (v == true) {
+                          _selectedDocIds.add(d.id);
+                        } else {
+                          _selectedDocIds.remove(d.id);
+                        }
+                      }),
+                      title: Text(d.originalName, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: Text(
+                        [
+                          titleCase(d.category),
+                          if ((d.providerName ?? '').isNotEmpty) d.providerName!,
+                          if (d.eventDate != null) formatDateTime(d.eventDate),
+                        ].join(' • '),
+                        style: theme.textTheme.bodySmall,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+              ],
               const SizedBox(height: 20),
               Text('Expiry & access', style: theme.textTheme.titleSmall),
               const SizedBox(height: 6),
@@ -292,11 +398,19 @@ class _CreateShareScreenState extends ConsumerState<CreateShareScreen> {
               ),
               const SizedBox(height: 24),
               FilledButton(
-                onPressed: _busy ? null : _create,
+                onPressed: (_busy || (!_includeAll && _selectedDocIds.isEmpty)) ? null : _create,
                 child: _busy
                     ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Text('Generate share link'),
               ),
+              if (!_includeAll && _selectedDocIds.isEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Select at least one record above, or switch on "Include ALL records".',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline),
+                ),
+              ],
               const SizedBox(height: 12),
               Text(
                 'The token is shown exactly once and never stored in readable form on the server.',
