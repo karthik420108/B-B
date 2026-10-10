@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/utils/formatters.dart';
 import '../../models/models.dart';
@@ -18,11 +19,42 @@ class ReviewScreen extends ConsumerStatefulWidget {
 
 String _isoDate(DateTime? d) => d == null ? '' : d.toIso8601String().split('T').first;
 
+/// A record is done once the patient verified or rejected it (server state, so
+/// progress survives a reload - not just what this screen session handled).
+bool _reviewed(String? verification) => verification == 'verified' || verification == 'rejected';
+
 class _ReviewScreenState extends ConsumerState<ReviewScreen> {
   final Set<String> _handled = {}; // "kind:id" entries already reviewed
   bool _busy = false;
 
   void _mark(String key) => setState(() => _handled.add(key));
+
+  bool _isDone(String key, [String? verification]) =>
+      _handled.contains(key) || _reviewed(verification);
+
+  /// Leave the screen. Each record is saved the moment it is verified or
+  /// rejected, so nothing is pending - but warn if records are still unreviewed.
+  Future<void> _leave(int remaining) async {
+    if (remaining > 0) {
+      final leave = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: const Text('Leave review?'),
+          content: Text(
+            '$remaining record${remaining == 1 ? ' is' : 's are'} still unreviewed. '
+            'Anything you already verified has been saved.',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Keep reviewing')),
+            FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Leave anyway')),
+          ],
+        ),
+      );
+      if (leave != true || !mounted) return;
+    }
+    if (!mounted) return;
+    context.go('/documents/${widget.id}');
+  }
 
   Future<void> _submit({
     required String kind,
@@ -58,9 +90,49 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
   Widget build(BuildContext context) {
     final detail = ref.watch(documentDetailProvider(widget.id));
     final theme = Theme.of(context);
+    final extracted = detail.value?.extracted ?? ExtractedBundle();
+
+    // Progress across every proposed record, so the footer and the completion
+    // card stay correct even after a reload (server-side verification counts).
+    final flags = <bool>[
+      ...extracted.observations.map((o) => _isDone('observation:${o.id}', o.verification)),
+      ...extracted.medications.map((m) => _isDone('medication:${m.id}', m.verification)),
+      ...extracted.conditions.map((c) => _isDone('condition:${c.id}', c.verification)),
+      ...extracted.allergies.map((a) => _isDone('allergy:${a.id}', a.verification)),
+      ...extracted.encounters.map((e) => _isDone('encounter:${e.id}')),
+    ];
+    final total = flags.length;
+    final handled = flags.where((f) => f).length;
+    final remaining = total - handled;
+    final allDone = total > 0 && remaining == 0;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Review & verify')),
+      // Persistent action bar: every record saves individually, so this is the
+      // way out of the screen (and the summary of how much is left).
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                total == 0
+                    ? 'Nothing to review'
+                    : allDone
+                        ? 'All $total records reviewed'
+                        : '$handled of $total reviewed',
+                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
+            ),
+            const SizedBox(width: 12),
+            FilledButton.icon(
+              onPressed: _busy ? null : () => _leave(remaining),
+              icon: Icon(allDone ? Icons.check_circle_outline : Icons.arrow_back, size: 18),
+              label: Text(allDone ? 'Done' : 'Back to document'),
+            ),
+          ],
+        ),
+      ),
       body: AsyncView<DocumentDetail>(
         value: detail,
         onRetry: () => ref.invalidate(documentDetailProvider(widget.id)),
@@ -74,6 +146,38 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
                 style: theme.textTheme.bodyMedium,
               ),
               const SizedBox(height: 16),
+              if (allDone) ...[
+                Card(
+                  color: theme.colorScheme.primaryContainer,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Icon(Icons.check_circle_outline, size: 40, color: theme.colorScheme.onPrimaryContainer),
+                        const SizedBox(height: 8),
+                        Text(
+                          'All $total records reviewed',
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Everything is saved to your file.',
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onPrimaryContainer),
+                        ),
+                        const SizedBox(height: 12),
+                        FilledButton.tonalIcon(
+                          onPressed: () => context.go('/documents/${widget.id}'),
+                          icon: const Icon(Icons.description_outlined, size: 18),
+                          label: const Text('View document'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
               _ReviewGroup(
                 title: 'Lab results',
                 icon: Icons.science_outlined,
@@ -84,7 +188,7 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
                       kind: 'observation',
                       title: o.testName,
                       subtitle: '${o.displayValue}  •  ${o.referenceRange ?? 'range n/a'}',
-                      handled: _handled.contains('observation:${o.id}'),
+                      handled: _isDone('observation:${o.id}', o.verification),
                       initialValues: {
                         'testName': o.testName,
                         'value': o.value.isFinite ? o.value.toString() : (o.valueString ?? ''),
@@ -113,7 +217,7 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
                       kind: 'medication',
                       title: m.name,
                       subtitle: [m.strength, m.frequency, m.route].whereType<String>().join(' • '),
-                      handled: _handled.contains('medication:${m.id}'),
+                      handled: _isDone('medication:${m.id}', m.verification),
                       initialValues: {
                         'name': m.name,
                         'strength': m.strength ?? '',
@@ -146,7 +250,7 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
                       kind: 'condition',
                       title: c.name,
                       subtitle: [c.status, formatDate(c.onsetDate)].whereType<String>().where((s) => s.isNotEmpty && s != 'Date unknown').join(' • '),
-                      handled: _handled.contains('condition:${c.id}'),
+                      handled: _isDone('condition:${c.id}', c.verification),
                       initialValues: {
                         'name': c.name,
                         'status': c.status ?? '',
@@ -171,7 +275,7 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
                       kind: 'allergy',
                       title: a.substance,
                       subtitle: [a.severity, a.reaction].whereType<String>().join(' • '),
-                      handled: _handled.contains('allergy:${a.id}'),
+                      handled: _isDone('allergy:${a.id}', a.verification),
                       initialValues: {
                         'substance': a.substance,
                         'reaction': a.reaction ?? '',
@@ -196,7 +300,7 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
                       kind: 'encounter',
                       title: e.type,
                       subtitle: [e.providerName, formatDate(e.date)].whereType<String>().where((s) => s.isNotEmpty && s != 'Date unknown').join(' • '),
-                      handled: _handled.contains('encounter:${e.id}'),
+                      handled: _isDone('encounter:${e.id}'),
                       initialValues: {
                         'type': e.type,
                         'providerName': e.providerName ?? '',

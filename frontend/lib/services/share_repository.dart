@@ -14,7 +14,12 @@ class ShareRepository {
 
   Future<List<ShareGrant>> list() async {
     final data = await _api.getBody('/api/shares');
-    final items = data is List ? data : ((data as Map<String, dynamic>?)?['items'] ?? const []);
+    // Type `items` explicitly: if it stays `dynamic`, the `.map(...).toList()`
+    // below becomes a *dynamic* call and on the web returns `List<dynamic>`,
+    // which then fails the `List<ShareGrant>` return check at runtime.
+    final List<dynamic> items = data is List
+        ? data
+        : ((data as Map<String, dynamic>?)?['items'] as List<dynamic>? ?? const <dynamic>[]);
     return items.map((e) => ShareGrant.fromJson(e as Map<String, dynamic>)).toList();
   }
 

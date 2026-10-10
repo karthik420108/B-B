@@ -17,8 +17,10 @@ class DoctorRepository {
   /// Shares that authorize this doctor (with per-request server checks).
   Future<List<Map<String, dynamic>>> myShares() async {
     final data = await _api.getBody('/api/doctor/shares');
-    final items = data is List ? data : ((data as Map<String, dynamic>?)?['items'] ?? const []);
-    return items.map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e as Map)).toList();
+    final List<dynamic> items = data is List
+        ? data
+        : ((data as Map<String, dynamic>?)?['items'] as List<dynamic>? ?? const <dynamic>[]);
+    return items.map((e) => Map<String, dynamic>.from(e as Map)).toList();
   }
 
   /// Inspect a token without consuming an access (used before claiming).
