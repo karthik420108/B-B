@@ -7,6 +7,8 @@ import 'package:health_wallet/features/doctor/pending_verification_screen.dart';
 import 'package:health_wallet/features/documents/documents_screen.dart';
 import 'package:health_wallet/features/medications/medications_screen.dart';
 import 'package:health_wallet/features/medications/safety_screen.dart';
+import 'package:health_wallet/features/reminders/add_medication_screen.dart';
+import 'package:health_wallet/features/reminders/reminders_screen.dart';
 import 'package:health_wallet/models/models.dart';
 import 'package:health_wallet/providers/providers.dart';
 
@@ -166,6 +168,61 @@ void main() {
     await tester.tap(find.text('Doctor'));
     await tester.pump();
     expect(find.text('Doctor view is only for verified doctor accounts.'), findsOneWidget);
+  });
+
+  testWidgets('Reminders screen lists today doses with their derived status', (tester) async {
+    final now = DateTime.now();
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        todayDosesProvider.overrideWith((ref) async => [
+              DoseOccurrence(id: 'd1', scheduleId: 's1', scheduledFor: now, status: 'TAKEN', scheduleName: 'Metformin'),
+              DoseOccurrence(
+                  id: 'd2',
+                  scheduleId: 's1',
+                  scheduledFor: now.add(const Duration(hours: 1)),
+                  status: 'DUE',
+                  scheduleName: 'Amlodipine'),
+            ]),
+        upcomingDosesProvider.overrideWith((ref) async => []),
+        schedulesProvider.overrideWith((ref) async => []),
+      ],
+      child: _host(const RemindersScreen()),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Medication reminders'), findsOneWidget);
+    expect(find.text('Metformin'), findsOneWidget);
+    expect(find.text('Amlodipine'), findsOneWidget);
+    expect(find.text('Due now'), findsOneWidget);
+  });
+
+  testWidgets('Reminders screen shows an empty state when nothing is due', (tester) async {
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        todayDosesProvider.overrideWith((ref) async => []),
+        upcomingDosesProvider.overrideWith((ref) async => []),
+        schedulesProvider.overrideWith((ref) async => []),
+      ],
+      child: _host(const RemindersScreen()),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Nothing due today'), findsOneWidget);
+  });
+
+  testWidgets('Add medication validates the medicine name before saving', (tester) async {
+    await tester.pumpWidget(ProviderScope(child: _host(const AddMedicationScreen())));
+    await tester.pump();
+
+    final label = find.text('Review & save');
+    await tester.scrollUntilVisible(label, 400, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
+    await tester.tap(label);
+    await tester.pump();
+
+    expect(find.text('Medicine name is required.'), findsOneWidget);
   });
 }
 

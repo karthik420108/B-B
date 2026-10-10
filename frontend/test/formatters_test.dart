@@ -53,4 +53,36 @@ void main() {
       expect(friendlyError(generic), 'Bad state: boom');
     });
   });
+
+  group('proposedRecordCount', () {
+    test('sums the extraction stats the backend actually returns', () {
+      // Real shape of `data.extraction` from POST /api/documents.
+      final extraction = <String, dynamic>{
+        'status': 'extracted',
+        'stats': {'observations': 1, 'conditions': 2, 'allergies': 0, 'medications': 1, 'encounters': 1},
+        'warnings': <dynamic>[],
+        'reviewNotes': <dynamic>[],
+        'textSource': 'pdf-text',
+        'ocrConfidence': null,
+      };
+      expect(proposedRecordCount(extraction), 5);
+    });
+
+    test('never throws on the object shape that broke the upload screen', () {
+      // Regression: this used to be cast to `List?` -> TypeError.
+      expect(proposedRecordCount({'status': 'failed', 'error': 'nope'}), 0);
+      expect(proposedRecordCount(null), 0);
+      expect(proposedRecordCount({'status': 'skipped', 'reason': 'already extracted'}), 0);
+      expect(proposedRecordCount(<dynamic>[{}, {}]), 2);
+    });
+  });
+
+  group('extractionFailure', () {
+    test('surfaces the reason only when extraction failed', () {
+      expect(extractionFailure({'status': 'failed', 'error': 'OCR exploded'}), 'OCR exploded');
+      expect(extractionFailure({'status': 'failed'}), 'Extraction failed.');
+      expect(extractionFailure({'status': 'extracted'}), isNull);
+      expect(extractionFailure(null), isNull);
+    });
+  });
 }

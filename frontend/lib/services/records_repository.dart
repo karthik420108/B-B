@@ -16,12 +16,6 @@ class RecordsRepository {
     return const [];
   }
 
-  Future<List<TimelineItem>> timeline() async {
-    final data = await _api.getBody('/api/records/timeline');
-    final items = _asList((data as Map<String, dynamic>?)?['items'] ?? data);
-    return items.map((e) => TimelineItem.fromJson(e as Map<String, dynamic>)).toList();
-  }
-
   Future<List<Observation>> observations() async {
     final data = await _api.getBody('/api/records/observations');
     return _asList(data).map((e) => Observation.fromJson(e as Map<String, dynamic>)).toList();

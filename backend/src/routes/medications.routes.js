@@ -5,7 +5,7 @@ const { z } = require('zod');
 const medicationService = require('../services/medicationService');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
-const { asyncHandler, ok, paginated } = require('../utils/http');
+const { asyncHandler, ok } = require('../utils/http');
 
 const router = express.Router();
 
@@ -73,10 +73,7 @@ router.get('/doses/upcoming', asyncHandler(async (req, res) => {
 router.get('/history', validate({ query: z.object({
   from: z.string().optional(), to: z.string().optional(),
   page: z.string().optional(), limit: z.string().optional(),
-}) }), asyncHandler(async (req, res) => {
-  const { items, total, page, limit } = await medicationService.getHistory(req.user._id, req.validatedQuery);
-  return paginated(res, items, total, { page, limit });
-}));
+}) }), asyncHandler(async (req, res) => ok(res, await medicationService.getHistory(req.user._id, req.validatedQuery))));
 
 /** Extract (but never persist) candidate medication details from a prescription. */
 router.post('/extract', validate({ body: z.object({ documentId: z.string().min(1) }) }),

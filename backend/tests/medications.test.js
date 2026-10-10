@@ -156,7 +156,7 @@ test('missed classification is derived server-side and never overwrites a record
 
   const history = await h.request(h.app).get('/api/medications/history').set('Authorization', `Bearer ${u.accessToken}`);
   assert.equal(history.status, 200);
-  const statuses = history.body.data.map((d) => d.status);
+  const statuses = history.body.data.items.map((d) => d.status);
   assert.ok(statuses.includes('MISSED'), 'unrecorded overdue dose becomes MISSED');
   assert.ok(statuses.includes('TAKEN'), 'recorded dose stays TAKEN');
 
@@ -320,10 +320,10 @@ test('prescription extraction rejects another patient\'s document', async () => 
 
 test('unreadable prescriptions return a helpful error', async () => {
   const u = await h.register('patient');
-  // ASCII control bytes recover no meaningful text.
+  // A note with no medication section recovers text but yields no candidates.
   const up = await h.request(h.app).post('/api/documents')
     .set('Authorization', `Bearer ${u.accessToken}`).field('category', 'prescription')
-    .attach('file', Buffer.from([0x00, 0x01, 0x02]), { filename: 'blank.bin', contentType: 'image/png' });
+    .attach('file', Buffer.from('Clinic note. Please rest and drink water.'), { filename: 'note.txt', contentType: 'text/plain' });
   const documentId = up.body.data.document.id;
   const res = await h.request(h.app).post('/api/medications/extract')
     .set('Authorization', `Bearer ${u.accessToken}`).send({ documentId });

@@ -101,3 +101,24 @@ String friendlyError(Object error) {
   if (error is NetworkException) return error.message;
   return error.toString().replaceFirst('Exception: ', '');
 }
+
+/// How many structured records an inline extraction proposed.
+///
+/// `POST /api/documents` returns `extraction` as an **object**
+/// (`{status, stats: {observations, conditions, ...}, warnings}`) or `null`,
+/// never a list. Casting it to `List?` throws
+/// `type '_JsonMap' is not a subtype of type 'List<dynamic>?'`.
+int proposedRecordCount(dynamic extraction) {
+  if (extraction is List) return extraction.length;
+  final stats = extraction is Map ? extraction['stats'] : null;
+  if (stats is Map) {
+    return stats.values.whereType<num>().fold<int>(0, (sum, v) => sum + v.toInt());
+  }
+  return 0;
+}
+
+/// Failure message carried by an inline extraction result, if it failed.
+String? extractionFailure(dynamic extraction) {
+  if (extraction is! Map || extraction['status'] != 'failed') return null;
+  return extraction['error']?.toString() ?? 'Extraction failed.';
+}

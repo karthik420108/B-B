@@ -6,7 +6,7 @@ class PatientShell extends StatelessWidget {
 
   final Widget child;
 
-  static const _tabs = ['/home', '/timeline', '/documents', '/assistant', '/health'];
+  static const _tabs = ['/home', '/reminders', '/documents', '/assistant', '/health'];
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +24,7 @@ class PatientShell extends StatelessWidget {
         },
         destinations: const [
           NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.timeline_outlined), selectedIcon: Icon(Icons.timeline), label: 'Timeline'),
+          NavigationDestination(icon: Icon(Icons.alarm_outlined), selectedIcon: Icon(Icons.alarm), label: 'Reminders'),
           NavigationDestination(icon: Icon(Icons.folder_outlined), selectedIcon: Icon(Icons.folder), label: 'Records'),
           NavigationDestination(icon: Icon(Icons.auto_awesome_outlined), selectedIcon: Icon(Icons.auto_awesome), label: 'Ask AI'),
           NavigationDestination(icon: Icon(Icons.health_and_safety_outlined), selectedIcon: Icon(Icons.health_and_safety), label: 'Health'),

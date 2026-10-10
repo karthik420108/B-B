@@ -27,9 +27,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       body: 'Structured lab results, medications and diagnoses are extracted from your records. Review, correct and verify every field before it becomes part of your file.',
     ),
     _PageData(
-      icon: Icons.timeline_outlined,
-      title: 'One timeline, grounded answers',
-      body: 'Ask questions about your own file. The assistant only ever answers from your records and cites the source document of every claim.',
+      icon: Icons.alarm_outlined,
+      title: 'Never miss a dose',
+      body: 'Turn a prescription into reminders you control. Confirm every extracted medicine, mark doses taken or skipped, and keep an honest history.',
     ),
     _PageData(
       icon: Icons.shield_outlined,

@@ -40,7 +40,6 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
           );
       _mark('$kind:$recordId');
       ref.invalidate(documentDetailProvider(widget.id));
-      ref.invalidate(timelineProvider);
       ref.invalidate(observationsProvider);
       ref.invalidate(medicationsProvider);
       if (!mounted) return;

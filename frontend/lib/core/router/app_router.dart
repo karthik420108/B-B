@@ -9,7 +9,11 @@ import '../../features/onboarding/onboarding_screen.dart';
 import '../../features/splash/splash_screen.dart';
 import '../../features/shell/patient_shell.dart';
 import '../../features/home/home_screen.dart';
-import '../../features/timeline/timeline_screen.dart';
+import '../../features/reminders/reminders_screen.dart';
+import '../../features/reminders/add_medication_screen.dart';
+import '../../features/reminders/schedule_detail_screen.dart';
+import '../../features/reminders/history_screen.dart';
+import '../../features/reminders/prescription_extract_screen.dart';
 import '../../features/documents/documents_screen.dart';
 import '../../features/documents/document_detail_screen.dart';
 import '../../features/documents/upload_screen.dart';
@@ -86,12 +90,16 @@ GoRouter createRouter(WidgetRef ref) {
         builder: (context, state, child) => PatientShell(child: child),
         routes: [
           GoRoute(path: '/home', builder: (c, s) => const HomeScreen()),
-          GoRoute(path: '/timeline', builder: (c, s) => const TimelineScreen()),
+          GoRoute(path: '/reminders', builder: (c, s) => const RemindersScreen()),
           GoRoute(path: '/documents', builder: (c, s) => const DocumentsScreen()),
           GoRoute(path: '/assistant', builder: (c, s) => const AssistantScreen()),
           GoRoute(path: '/health', builder: (c, s) => const HealthHubScreen()),
         ],
       ),
+      GoRoute(path: '/reminders/add', builder: (c, s) => const AddMedicationScreen()),
+      GoRoute(path: '/reminders/history', builder: (c, s) => const MedicationHistoryScreen()),
+      GoRoute(path: '/reminders/extract', builder: (c, s) => PrescriptionExtractScreen(documentId: s.uri.queryParameters['documentId'])),
+      GoRoute(path: '/reminders/schedule/:id', builder: (c, s) => ScheduleDetailScreen(id: s.pathParameters['id']!)),
       GoRoute(path: '/documents/upload', builder: (c, s) => const UploadScreen()),
       GoRoute(path: '/documents/:id', builder: (c, s) => DocumentDetailScreen(id: s.pathParameters['id']!)),
       GoRoute(path: '/documents/:id/review', builder: (c, s) => ReviewScreen(id: s.pathParameters['id']!)),

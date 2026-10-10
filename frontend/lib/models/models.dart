@@ -8,6 +8,17 @@ int _i(dynamic v, [int fallback = 0]) => v is int ? v : (v is num ? v.toInt() : 
 double _d(dynamic v, [double fallback = 0]) => v is num ? v.toDouble() : (v is String ? (double.tryParse(v) ?? fallback) : fallback);
 DateTime? _dt(dynamic v) => v == null ? null : DateTime.tryParse(v.toString())?.toLocal();
 
+/// Parse a date-only value (`YYYY-MM-DD`) as a local calendar date without
+/// shifting the day across timezones.
+DateTime? _dateOnly(dynamic v) {
+  if (v == null) return null;
+  final match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(v.toString());
+  if (match != null) {
+    return DateTime(int.parse(match[1]!), int.parse(match[2]!), int.parse(match[3]!));
+  }
+  return DateTime.tryParse(v.toString());
+}
+
 /// Light-weight user session payload.
 class AuthData {
   AuthData({
@@ -96,68 +107,268 @@ class DocumentSummary {
   final List<String> tags;
 }
 
-class TimelineItem {
-  TimelineItem({
-    required this.kind,
-    required this.title,
+/// A patient-owned medication reminder schedule.
+///
+/// Reminder times are stored as wall-clock `HH:mm` strings plus an IANA
+/// timezone, so a reminder stays at "08:00" across daylight-saving changes.
+class MedicationSchedule {
+  MedicationSchedule({
     required this.id,
-    required this.date,
-    this.dateUnknown = false,
-    this.providerName,
-    this.subtitle,
-    this.status,
-    this.source,
-    this.verification,
-    this.value,
-    this.unit,
+    required this.name,
+    required this.status,
+    required this.frequency,
+    required this.reminderTimes,
+    this.strength,
+    this.doseInstructions,
+    this.route,
+    this.weekdays = const [],
+    this.startDate,
+    this.endDate,
+    this.timezone = 'UTC',
+    this.instructions,
+    this.notes,
+    this.sourceType = 'MANUAL',
+    this.sourceDocument,
+    this.confirmed = false,
+    this.nextDoseAt,
+    this.createdAt,
+    this.recentHistory = const [],
   });
 
-  factory TimelineItem.fromJson(Map<String, dynamic> json) => TimelineItem(
-        kind: _s(json['kind']),
-        title: _s(json['title']),
+  factory MedicationSchedule.fromJson(Map<String, dynamic> json) => MedicationSchedule(
         id: _s(json['id']),
-        date: _dt(json['date']),
-        dateUnknown: _b(json['dateUnknown']),
-        providerName: json['providerName']?.toString(),
-        subtitle: json['subtitle']?.toString(),
-        status: json['status']?.toString(),
-        source: json['source']?.toString(),
-        verification: json['verification']?.toString(),
-        value: json['value']?.toString(),
-        unit: json['unit']?.toString(),
+        name: _s(json['name']),
+        status: _s(json['status'], 'ACTIVE'),
+        frequency: _s(json['frequency'], 'custom'),
+        reminderTimes:
+            (json['reminderTimes'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+        strength: json['strength']?.toString(),
+        doseInstructions: json['doseInstructions']?.toString(),
+        route: json['route']?.toString(),
+        weekdays: (json['weekdays'] as List?)?.map((e) => _i(e)).toList() ?? const [],
+        startDate: _dateOnly(json['startDate']),
+        endDate: _dateOnly(json['endDate']),
+        timezone: _s(json['timezone'], 'UTC'),
+        instructions: json['instructions']?.toString(),
+        notes: json['notes']?.toString(),
+        sourceType: _s(json['sourceType'], 'MANUAL'),
+        sourceDocument: json['sourceDocument']?.toString(),
+        confirmed: _b(json['confirmed']),
+        nextDoseAt: _dt(json['nextDoseAt']),
+        createdAt: _dt(json['createdAt']),
+        recentHistory: (json['recentHistory'] as List?)
+                ?.map((e) => DoseOccurrence.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            const [],
       );
 
-  final String kind;
-  final String title;
   final String id;
-  final DateTime? date;
-  final bool dateUnknown;
-  final String? providerName;
-  final String? subtitle;
-  final String? status;
-  final String? source;
-  final String? verification;
-  final String? value;
-  final String? unit;
+  final String name;
+  final String status; // ACTIVE | PAUSED | COMPLETED | DISCONTINUED
+  final String frequency; // once_daily | twice_daily | three_times_daily | custom
+  final List<String> reminderTimes; // "HH:mm" wall-clock
+  final String? strength;
+  final String? doseInstructions;
+  final String? route;
+  final List<int> weekdays; // 0=Sunday .. 6=Saturday; empty = every day
+  final DateTime? startDate;
+  final DateTime? endDate;
+  final String timezone;
+  final String? instructions;
+  final String? notes;
+  final String sourceType; // MANUAL | PRESCRIPTION
+  final String? sourceDocument;
+  final bool confirmed;
+  final DateTime? nextDoseAt;
+  final DateTime? createdAt;
+  final List<DoseOccurrence> recentHistory;
 
-  String get kindLabel {
-    switch (kind) {
-      case 'observation':
-        return 'Lab result';
-      case 'medication':
-        return 'Medication';
-      case 'condition':
-        return 'Diagnosis';
-      case 'allergy':
-        return 'Allergy';
-      case 'encounter':
-        return 'Visit';
-      case 'document':
-        return 'Document';
-      default:
-        return 'Record';
-    }
+  bool get isActive => status == 'ACTIVE';
+  bool get isPaused => status == 'PAUSED';
+  bool get isStopped => status == 'DISCONTINUED';
+  bool get isCompleted => status == 'COMPLETED';
+  bool get fromPrescription => sourceType == 'PRESCRIPTION';
+}
+
+/// A single scheduled dose occurrence, with the status derived server-side.
+class DoseOccurrence {
+  DoseOccurrence({
+    required this.id,
+    required this.scheduleId,
+    required this.scheduledFor,
+    required this.status,
+    this.scheduleName,
+    this.recordedStatus,
+    this.actedAt,
+    this.actionSource,
+    this.note,
+    this.strength,
+    this.doseInstructions,
+    this.frequency,
+    this.sourceType,
+    this.scheduleStatus,
+    this.endDate,
+  });
+
+  factory DoseOccurrence.fromJson(Map<String, dynamic> json) => DoseOccurrence(
+        id: _s(json['id']),
+        scheduleId: _s(json['scheduleId']),
+        scheduledFor: _dt(json['scheduledFor']),
+        status: _s(json['status'], 'UPCOMING'),
+        scheduleName: json['scheduleName']?.toString(),
+        recordedStatus: json['recordedStatus']?.toString(),
+        actedAt: _dt(json['actedAt']),
+        actionSource: json['actionSource']?.toString(),
+        note: json['note']?.toString(),
+        strength: json['strength']?.toString(),
+        doseInstructions: json['doseInstructions']?.toString(),
+        frequency: json['frequency']?.toString(),
+        sourceType: json['sourceType']?.toString(),
+        scheduleStatus: json['scheduleStatus']?.toString(),
+        endDate: _dateOnly(json['endDate']),
+      );
+
+  final String id;
+  final String scheduleId;
+  final DateTime? scheduledFor;
+  final String status; // UPCOMING | DUE | TAKEN | SKIPPED | MISSED
+  final String? scheduleName;
+  final String? recordedStatus; // the persisted patient/system status
+  final DateTime? actedAt;
+  final String? actionSource; // PATIENT | SYSTEM
+  final String? note;
+  final String? strength;
+  final String? doseInstructions;
+  final String? frequency;
+  final String? sourceType;
+  final String? scheduleStatus;
+  final DateTime? endDate;
+
+  bool get isTaken => status == 'TAKEN';
+  bool get isSkipped => status == 'SKIPPED';
+  bool get isMissed => status == 'MISSED';
+  bool get isDue => status == 'DUE';
+  bool get isUpcoming => status == 'UPCOMING';
+  bool get isRecorded => isTaken || isSkipped;
+
+  /// A late dose can still be recorded as Taken/Skipped; the server decides the
+  /// exact tracking window.
+  bool get canAct => !isRecorded;
+}
+
+/// Result of reading medication history (Taken / Skipped / Missed).
+class DoseHistory {
+  DoseHistory({this.items = const [], this.total = 0, this.disclaimer = ''});
+
+  factory DoseHistory.fromJson(Map<String, dynamic> json) => DoseHistory(
+        items: (json['items'] as List?)
+                ?.map((e) => DoseOccurrence.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            const [],
+        total: _i(json['total']),
+        disclaimer: _s(json['disclaimer']),
+      );
+
+  final List<DoseOccurrence> items;
+  final int total;
+  final String disclaimer;
+}
+
+/// A medication candidate proposed by prescription extraction. Never persisted
+/// until the patient explicitly confirms it.
+class ExtractionCandidate {
+  ExtractionCandidate({
+    required this.name,
+    this.strength,
+    this.dose,
+    this.frequency,
+    this.route,
+    this.form,
+    this.instructions,
+    this.uncertainFields = const [],
+    this.confidence = 0,
+    this.sourceSnippet,
+  });
+
+  factory ExtractionCandidate.fromJson(Map<String, dynamic> json) => ExtractionCandidate(
+        name: _s(json['name']),
+        strength: json['strength']?.toString(),
+        dose: json['dose']?.toString(),
+        frequency: json['frequency']?.toString(),
+        route: json['route']?.toString(),
+        form: json['form']?.toString(),
+        instructions: json['instructions']?.toString(),
+        uncertainFields:
+            (json['uncertainFields'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+        confidence: _d(json['confidence']),
+        sourceSnippet: json['sourceSnippet']?.toString(),
+      );
+
+  final String name;
+  final String? strength;
+  final String? dose;
+  final String? frequency;
+  final String? route;
+  final String? form;
+  final String? instructions;
+
+  /// Fields the extractor could not read with confidence; the patient must fill
+  /// these in before saving.
+  final List<String> uncertainFields;
+  final double confidence;
+  final String? sourceSnippet;
+
+  bool get hasUncertainty => uncertainFields.isNotEmpty;
+}
+
+/// Full preview of what was read from a prescription document.
+class PrescriptionExtraction {
+  PrescriptionExtraction({
+    required this.documentId,
+    required this.documentName,
+    this.category,
+    this.eventDate,
+    this.extractedAt,
+    this.textSource = 'unknown',
+    this.ocrConfidence,
+    this.reviewNotes = const [],
+    this.candidates = const [],
+    this.rawTextExcerpt,
+    this.note = '',
+  });
+
+  factory PrescriptionExtraction.fromJson(Map<String, dynamic> json) {
+    final doc = (json['document'] as Map<String, dynamic>?) ?? const {};
+    return PrescriptionExtraction(
+      documentId: _s(doc['id']),
+      documentName: _s(doc['originalName']),
+      category: doc['category']?.toString(),
+      eventDate: _dt(doc['eventDate']),
+      extractedAt: _dt(json['extractedAt']),
+      textSource: _s(json['textSource'], 'unknown'),
+      ocrConfidence: json['ocrConfidence'] is num ? _d(json['ocrConfidence']) : null,
+      reviewNotes:
+          (json['reviewNotes'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+      candidates: (json['candidates'] as List?)
+              ?.map((e) => ExtractionCandidate.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
+      rawTextExcerpt: json['rawTextExcerpt']?.toString(),
+      note: _s(json['note']),
+    );
   }
+
+  final String documentId;
+  final String documentName;
+  final String? category;
+  final DateTime? eventDate;
+  final DateTime? extractedAt;
+  final String textSource; // pdf-text | ocr | plain-text | ...
+  final double? ocrConfidence;
+  final List<String> reviewNotes;
+  final List<ExtractionCandidate> candidates;
+  final String? rawTextExcerpt;
+  final String note;
 }
 
 class Observation {
