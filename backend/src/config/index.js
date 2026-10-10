@@ -68,7 +68,10 @@ const config = {
   rateLimit: {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
     max: parseInt(process.env.RATE_LIMIT_MAX || '300', 10),
-    sensitiveMax: parseInt(process.env.SENSITIVE_RATE_LIMIT_MAX || '20', 10),
+    /** Login / register / password reset / token refresh - strict, brute-force surface. */
+    authMax: parseInt(process.env.AUTH_RATE_LIMIT_MAX || '20', 10),
+    /** Uploads, extraction, sharing and AI - normal use spends a lot of these. */
+    sensitiveMax: parseInt(process.env.SENSITIVE_RATE_LIMIT_MAX || '100', 10),
   },
   isTest: process.env.NODE_ENV === 'test',
 };
