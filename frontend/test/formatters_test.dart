@@ -1,0 +1,56 @@
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:health_wallet/core/network/api_exception.dart';
+import 'package:health_wallet/core/utils/formatters.dart';
+
+void main() {
+  group('formatDate / formatDateTime', () {
+    test('null dates fall back to sensible labels', () {
+      expect(formatDate(null), 'Date unknown');
+      expect(formatDateTime(null), '—');
+    });
+
+    test('dates are rendered in a readable day format', () {
+      final d = DateTime(2026, 3, 5);
+      expect(formatDate(d), '5 Mar 2026');
+    });
+  });
+
+  group('formatBytes', () {
+    test('handles B, KB and MB', () {
+      expect(formatBytes(512), '512 B');
+      expect(formatBytes(2048), '2.0 KB');
+      expect(formatBytes(3 * 1024 * 1024), '3.0 MB');
+      expect(formatBigBytes(1024 * 1024 * 2), '2.0 MB');
+      expect(formatBigBytes(500 * 1024), '500 KB');
+    });
+  });
+
+  group('titleCase', () {
+    test('splits on underscores, dashes and spaces', () {
+      expect(titleCase('discharge_summary'), 'Discharge Summary');
+      expect(titleCase('consultation-note'), 'Consultation Note');
+      expect(titleCase('lab'), 'Lab');
+      expect(titleCase(''), '');
+    });
+  });
+
+  group('verificationLabel', () {
+    test('maps statuses', () {
+      expect(verificationLabel('verified'), 'Verified');
+      expect(verificationLabel('rejected'), 'Rejected');
+      expect(verificationLabel(null), 'Unverified (AI)');
+      expect(verificationLabel('unverified'), 'Unverified (AI)');
+    });
+  });
+
+  group('friendlyError', () {
+    test('unwraps typed API errors and generic messages', () {
+      final api = ApiException(statusCode: 403, code: 'FORBIDDEN', message: 'Not authorized');
+      expect(friendlyError(api), 'Not authorized');
+
+      final generic = StateError('boom');
+      expect(friendlyError(generic), 'Bad state: boom');
+    });
+  });
+}

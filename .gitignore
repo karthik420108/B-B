@@ -1,0 +1,26 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Local database and caches
+.data/
+*.log
+
+# Backend
+backend/node_modules/
+backend/.env
+backend/.env.*
+!backend/.env.example
+backend/uploads/
+backend/.ocr-cache/
+backend/data/*.local.json
+backend/*.traineddata
+
+# Frontend Flutter/Dart
+frontend/.dart_tool/
+frontend/.flutter-plugins-dependencies
+frontend/.pub-cache/
+frontend/.pub/
+frontend/build/
+frontend/.idea/
+frontend/*.iml

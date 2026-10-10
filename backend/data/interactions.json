@@ -1,0 +1,178 @@
+{
+  "meta": {
+    "name": "Health Wallet Curated Interaction Rules",
+    "version": "1.0.0",
+    "updated": "2024-06-01",
+    "description": "A small, curated set of well-documented drug-drug interactions used by the Health Wallet rules engine. This is NOT a complete clinical drug interaction database. It must be replaced with a licensed/validated source (e.g. a maintained DrugBank, RxNav/RxNorm interaction API, or a national formulary feed) before any clinical use. Rules are keyed by normalized generic ingredient names.",
+    "sources": [
+      { "id": "FDA-LABEL", "title": "US FDA structured product labeling / medication guides", "url": "https://dailymed.nlm.nih.gov/dailymed/" },
+      { "id": "NLM-RXNORM", "title": "NLM RxNorm / RxNav", "url": "https://rxnav.nlm.nih.gov/" },
+      { "id": "STOCKLEY", "title": "Stockley's Drug Interactions (reference summary)", "url": "https://www.medicinescomplete.com/" }
+    ],
+    "disclaimer": "Informational only. Requires professional review. Never start, stop or change a medicine based on this output."
+  },
+  "interactions": [
+    {
+      "a": "warfarin",
+      "b": "ibuprofen",
+      "severity": "major",
+      "effect": "Markedly increased risk of serious gastrointestinal and other bleeding.",
+      "mechanism": "NSAID-induced platelet inhibition and gastric mucosal injury, added to warfarin's anticoagulant effect.",
+      "management": "Avoid the combination where possible; if unavoidable, use gastroprotection and close INR/monitoring per clinician.",
+      "source": "FDA-LABEL"
+    },
+    {
+      "a": "warfarin",
+      "b": "aspirin",
+      "severity": "major",
+      "effect": "Increased bleeding risk.",
+      "mechanism": "Additive haemostatic impairment (platelet inhibition plus anticoagulation).",
+      "management": "Only under explicit clinical indication with monitoring.",
+      "source": "FDA-LABEL"
+    },
+    {
+      "a": "warfarin",
+      "b": "diclofenac",
+      "severity": "major",
+      "effect": "Increased bleeding and INR elevation.",
+      "mechanism": "NSAID platelet effects plus possible CYP2C9 interaction.",
+      "management": "Avoid; choose alternative analgesia after clinical review.",
+      "source": "FDA-LABEL"
+    },
+    {
+      "a": "warfarin",
+      "b": "metronidazole",
+      "severity": "major",
+      "effect": "Significant increase in INR / bleeding risk.",
+      "mechanism": "Inhibition of CYP2C9 metabolism of warfarin (S-enantiomer).",
+      "management": "Anticipate dose adjustment and frequent INR monitoring.",
+      "source": "STOCKLEY"
+    },
+    {
+      "a": "warfarin",
+      "b": "azithromycin",
+      "severity": "moderate",
+      "effect": "Possible increase in INR.",
+      "mechanism": "Altered warfarin metabolism and gut flora vitamin K production.",
+      "management": "Monitor INR during and after the course.",
+      "source": "STOCKLEY"
+    },
+    {
+      "a": "warfarin",
+      "b": "ciprofloxacin",
+      "severity": "major",
+      "effect": "Increased INR and bleeding risk.",
+      "mechanism": "Inhibition of warfarin metabolism.",
+      "management": "Monitor INR closely; adjust per clinician.",
+      "source": "FDA-LABEL"
+    },
+    {
+      "a": "lisinopril",
+      "b": "spironolactone",
+      "severity": "major",
+      "effect": "Risk of severe hyperkalaemia.",
+      "mechanism": "Additive potassium retention (ACE inhibitor plus potassium-sparing diuretic).",
+      "management": "Monitor potassium and renal function; use with clinical oversight.",
+      "source": "FDA-LABEL"
+    },
+    {
+      "a": "lisinopril",
+      "b": "potassium chloride",
+      "severity": "major",
+      "effect": "Risk of hyperkalaemia.",
+      "mechanism": "Additive potassium retention.",
+      "management": "Monitor serum potassium; avoid unless supervised.",
+      "source": "FDA-LABEL"
+    },
+    {
+      "a": "lisinopril",
+      "b": "ibuprofen",
+      "severity": "moderate",
+      "effect": "Reduced blood-pressure control and risk of renal impairment.",
+      "mechanism": "NSAID inhibition of prostaglandins reducing renal perfusion.",
+      "management": "Use the lowest effective NSAID dose, hydrate, monitor BP and renal function.",
+      "source": "STOCKLEY"
+    },
+    {
+      "a": "aspirin",
+      "b": "ibuprofen",
+      "severity": "moderate",
+      "effect": "Reduced cardioprotective effect of low-dose aspirin; increased GI bleeding.",
+      "mechanism": "Competitive COX-1 platelet binding.",
+      "management": "Separate dosing timing or choose another analgesic after review.",
+      "source": "FDA-LABEL"
+    },
+    {
+      "a": "clopidogrel",
+      "b": "omeprazole",
+      "severity": "moderate",
+      "effect": "Reduced antiplatelet effect of clopidogrel.",
+      "mechanism": "CYP2C19 inhibition affecting clopidogrel activation.",
+      "management": "Consider a different proton-pump inhibitor (e.g. pantoprazole) after review.",
+      "source": "FDA-LABEL"
+    },
+    {
+      "a": "clopidogrel",
+      "b": "aspirin",
+      "severity": "moderate",
+      "effect": "Increased bleeding risk.",
+      "mechanism": "Additive platelet inhibition.",
+      "management": "Frequently intentional (dual antiplatelet therapy) - confirm clinical plan and monitor for bleeding.",
+      "source": "FDA-LABEL"
+    },
+    {
+      "a": "simvastatin",
+      "b": "amlodipine",
+      "severity": "moderate",
+      "effect": "Increased risk of myopathy/rhabdomyolysis.",
+      "mechanism": "CYP3A4 inhibition increasing simvastatin exposure.",
+      "management": "Limit simvastatin dose and monitor for muscle symptoms.",
+      "source": "FDA-LABEL"
+    },
+    {
+      "a": "simvastatin",
+      "b": "azithromycin",
+      "severity": "moderate",
+      "effect": "Possible increased statin exposure and muscle-related effects.",
+      "mechanism": "Reduced statin metabolism.",
+      "management": "Monitor for muscle pain; review statin choice if symptomatic.",
+      "source": "STOCKLEY"
+    },
+    {
+      "a": "metformin",
+      "b": "ciprofloxacin",
+      "severity": "moderate",
+      "effect": "Disturbance of blood glucose control (dysglycaemia).",
+      "mechanism": "Fluoroquinolone-associated glycaemic effects.",
+      "management": "Monitor blood glucose during therapy.",
+      "source": "FDA-LABEL"
+    },
+    {
+      "a": "levothyroxine",
+      "b": "omeprazole",
+      "severity": "moderate",
+      "effect": "Reduced levothyroxine absorption, possibly raising TSH.",
+      "mechanism": "Increased gastric pH.",
+      "management": "Take levothyroxine on an empty stomach; recheck thyroid function.",
+      "source": "STOCKLEY"
+    },
+    {
+      "a": "levothyroxine",
+      "b": "ciprofloxacin",
+      "severity": "moderate",
+      "effect": "Reduced levothyroxine absorption.",
+      "mechanism": "Chelation / altered gastric pH.",
+      "management": "Separate administration by several hours; recheck thyroid function.",
+      "source": "STOCKLEY"
+    },
+    {
+      "a": "lisinopril",
+      "b": "furosemide",
+      "severity": "moderate",
+      "effect": "First-dose hypotension and renal function changes.",
+      "mechanism": "Additive blood-pressure and volume reduction.",
+      "management": "Monitor BP and renal function, especially on initiation.",
+      "source": "STOCKLEY"
+    }
+  ]
+}

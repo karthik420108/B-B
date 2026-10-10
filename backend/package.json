@@ -1,0 +1,41 @@
+{
+  "name": "health-wallet-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "description": "AI-Powered Personal Health Wallet - backend API",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "seed": "node src/seed/seed.js",
+    "seed:reset": "node src/seed/seed.js --reset",
+    "test": "node --test --test-concurrency=1 tests/*.test.js",
+    "lint": "node -e \"require('./src/app'); console.log('app loads ok')\""
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^0.1.80",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.8.0",
+    "multer": "^2.4.0",
+    "nanoid": "^3.3.7",
+    "pdfjs-dist": "^4.7.76",
+    "tesseract.js": "^5.1.1",
+    "uuid": "^11.0.3",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^10.1.2",
+    "pdfkit": "^0.20.2",
+    "supertest": "^7.0.0"
+  }
+}

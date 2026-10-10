@@ -1,0 +1,299 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+
+import '../../core/utils/formatters.dart';
+import '../../models/models.dart';
+import '../../providers/providers.dart';
+
+class CreateShareScreen extends ConsumerStatefulWidget {
+  const CreateShareScreen({super.key});
+
+  @override
+  ConsumerState<CreateShareScreen> createState() => _CreateShareScreenState();
+}
+
+class _CreateShareScreenState extends ConsumerState<CreateShareScreen> {
+  final _label = TextEditingController();
+  List<Map<String, dynamic>> _doctors = [];
+  Map<String, dynamic>? _selectedDoctor;
+  int _expiry = 1440;
+  int _maxAccesses = 0;
+  bool _includeAll = false;
+  bool _includeSummary = true;
+  bool _includeTimeline = true;
+  bool _includeMedications = true;
+  bool _includeAllergies = true;
+  bool _includeObservations = true;
+  bool _includeDuplicateAlerts = true;
+  bool _busy = false;
+  bool _doctorListLoaded = false;
+
+  @override
+  void dispose() {
+    _label.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadDoctors() async {
+    if (_doctorListLoaded) return;
+    try {
+      final docs = await ref.read(doctorRepositoryProvider).directory();
+      if (!mounted) return;
+      setState(() {
+        _doctors = docs;
+        _doctorListLoaded = true;
+      });
+    } catch (_) {
+      // Directory is optional; the share can be created without naming a doctor.
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadDoctors());
+  }
+
+  Future<void> _create() async {
+    setState(() => _busy = true);
+    try {
+      final payload = <String, dynamic>{
+        'label': _label.text.trim().isEmpty ? null : _label.text.trim(),
+        'includeAll': _includeAll,
+        'includeSummary': _includeSummary,
+        'includeTimeline': _includeTimeline,
+        'includeMedications': _includeMedications,
+        'includeAllergies': _includeAllergies,
+        'includeObservations': _includeObservations,
+        'includeDuplicateAlerts': _includeDuplicateAlerts,
+        'expiresInMinutes': _expiry,
+        'maxAccesses': _maxAccesses,
+        if (_selectedDoctor != null) 'doctorUserId': _selectedDoctor!['id'],
+        if (_selectedDoctor != null) 'doctorEmail': _selectedDoctor!['email'],
+        if (_selectedDoctor != null) 'doctorName': _selectedDoctor!['name'],
+        if (_selectedDoctor != null) 'doctorSpecialty': _selectedDoctor!['specialty'],
+      };
+      final created = await ref.read(shareRepositoryProvider).create(payload);
+      ref.invalidate(sharesProvider);
+      if (!mounted) return;
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (c) => _ShareResultSheet(created: created),
+      );
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(title: const Text('New share')),
+      body: SafeArea(
+        child: Form(
+          child: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              Text(
+                'Choose exactly what a doctor may see. Access is logged, expires automatically, and can be revoked any time from the server — the doctor only ever sees the consented scope below.',
+                style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 20),
+              TextFormField(
+                controller: _label,
+                decoration: const InputDecoration(labelText: 'Label (optional)', prefixIcon: Icon(Icons.sell_outlined)),
+              ),
+              const SizedBox(height: 14),
+              DropdownButtonFormField<Map<String, dynamic>>(
+                initialValue: _selectedDoctor,
+                hint: const Text('Any doctor who claims the link'),
+                decoration: const InputDecoration(labelText: 'Nominated doctor (optional)', prefixIcon: Icon(Icons.medical_services_outlined)),
+                items: _doctors
+                    .map((d) => DropdownMenuItem(
+                          value: d,
+                          child: Text('${d['name']}${d['specialty'] != null ? ' — ${d['specialty']}' : ''}', overflow: TextOverflow.ellipsis),
+                        ))
+                    .toList(),
+                onChanged: (v) => setState(() => _selectedDoctor = v),
+              ),
+              const SizedBox(height: 20),
+              Text('Scope', style: theme.textTheme.titleSmall),
+              const SizedBox(height: 6),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Include ALL records'),
+                subtitle: Text(_includeAll ? 'Overrides the toggles below' : 'Limit to selected sections'),
+                value: _includeAll,
+                onChanged: (v) => setState(() => _includeAll = v),
+              ),
+              if (!_includeAll)
+                for (final (key, label) in const [
+                  ('includeSummary', 'Medical summary'),
+                  ('includeTimeline', 'Timeline & encounters'),
+                  ('includeMedications', 'Medications'),
+                  ('includeAllergies', 'Allergies'),
+                  ('includeObservations', 'Lab results'),
+                  ('includeDuplicateAlerts', 'Duplicate-test alerts'),
+                ])
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    title: Text(label),
+                    value: _valueOf(key),
+                    onChanged: (v) => _setValueOf(key, v),
+                  ),
+              const SizedBox(height: 20),
+              Text('Expiry & access', style: theme.textTheme.titleSmall),
+              const SizedBox(height: 6),
+              SegmentedButton<int>(
+                segments: const [
+                  ButtonSegment(value: 60, label: Text('1 h')),
+                  ButtonSegment(value: 1440, label: Text('1 day')),
+                  ButtonSegment(value: 10080, label: Text('7 days')),
+                  ButtonSegment(value: 43200, label: Text('30 days')),
+                ],
+                selected: {_expiry},
+                onSelectionChanged: (s) => setState(() => _expiry = s.first),
+              ),
+              const SizedBox(height: 14),
+              DropdownButtonFormField<int>(
+                initialValue: _maxAccesses,
+                decoration: const InputDecoration(labelText: 'Max accesses (0 = unlimited)', prefixIcon: Icon(Icons.lock_clock_outlined)),
+                items: const [
+                  DropdownMenuItem(value: 0, child: Text('Unlimited')),
+                  DropdownMenuItem(value: 1, child: Text('1 access')),
+                  DropdownMenuItem(value: 3, child: Text('3 accesses')),
+                  DropdownMenuItem(value: 10, child: Text('10 accesses')),
+                ],
+                onChanged: (v) => setState(() => _maxAccesses = v ?? 0),
+              ),
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: _busy ? null : _create,
+                child: _busy
+                    ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('Generate share link'),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'The token is shown exactly once and never stored in readable form on the server.',
+                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  bool _valueOf(String key) => switch (key) {
+        'includeSummary' => _includeSummary,
+        'includeTimeline' => _includeTimeline,
+        'includeMedications' => _includeMedications,
+        'includeAllergies' => _includeAllergies,
+        'includeObservations' => _includeObservations,
+        'includeDuplicateAlerts' => _includeDuplicateAlerts,
+        _ => false,
+      };
+
+  void _setValueOf(String key, bool v) => setState(() {
+        switch (key) {
+          case 'includeSummary':
+            _includeSummary = v;
+          case 'includeTimeline':
+            _includeTimeline = v;
+          case 'includeMedications':
+            _includeMedications = v;
+          case 'includeAllergies':
+            _includeAllergies = v;
+          case 'includeObservations':
+            _includeObservations = v;
+          case 'includeDuplicateAlerts':
+            _includeDuplicateAlerts = v;
+        }
+      });
+}
+
+class _ShareResultSheet extends StatelessWidget {
+  const _ShareResultSheet({required this.created});
+  final ShareCreated created;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final qrData = created.absoluteUrl ?? created.shareUrl;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.check_circle_outline, size: 44, color: theme.colorScheme.primary),
+            const SizedBox(height: 8),
+            Text('Share created', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: QrImageView(data: qrData, version: QrVersions.auto, size: 220),
+            ),
+            const SizedBox(height: 8),
+            Text('Scan to open the share page (no medical data in the QR — only an opaque, revocable link).', textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
+            const SizedBox(height: 16),
+            Card(
+              color: theme.colorScheme.surfaceContainerHigh,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Secret token (shown once)', style: theme.textTheme.labelMedium),
+                    SelectableText(
+                      created.token,
+                      style: theme.textTheme.bodyMedium?.copyWith(fontFamily: 'monospace', letterSpacing: 1),
+                    ),
+                    const SizedBox(height: 10),
+                    Text('Share link', style: theme.textTheme.labelMedium),
+                    Text(qrData, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => Clipboard.setData(ClipboardData(text: qrData)),
+                    icon: const Icon(Icons.copy, size: 18),
+                    label: const Text('Copy link'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Done'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

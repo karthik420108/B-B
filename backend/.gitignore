@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Secrets & environment
+.env
+.env.*
+!.env.example
+
+# Local storage & caches
+uploads/
+.ocr-cache/
+data/*.local.json
+
+# Tesseract language data (downloaded at runtime)
+*.traineddata
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
