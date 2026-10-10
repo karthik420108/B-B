@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: health-wallet-backend
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "10000"
+      - key: MONGODB_URI
+        fromSecret: mongodb_uri
+      - key: JWT_ACCESS_SECRET
+        fromSecret: jwt_access_secret
+      - key: JWT_REFRESH_SECRET
+        fromSecret: jwt_refresh_secret
+      - key: CLOUDINARY_CLOUD_NAME
+        fromSecret: cloudinary_cloud_name
+      - key: CLOUDINARY_API_KEY
+        fromSecret: cloudinary_api_key
+      - key: CLOUDINARY_API_SECRET
+        fromSecret: cloudinary_api_secret
+    autoDeploy: true
+    healthCheckPath: /health
