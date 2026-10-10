@@ -23,6 +23,11 @@ class ShareRepository {
     return ShareDetail.fromJson(data as Map<String, dynamic>? ?? const {});
   }
 
+  Future<Map<String, dynamic>> accessHistory(String id) async {
+    final data = await _api.getBody('/api/shares/$id/access-history');
+    return (data as Map<String, dynamic>?) ?? const {};
+  }
+
   Future<ShareDetail> revoke(String id, {String reason = ''}) async {
     final data = await _api.postBody('/api/shares/$id/revoke', body: {'reason': reason});
     return ShareDetail.fromJson(data as Map<String, dynamic>? ?? const {});

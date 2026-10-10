@@ -34,6 +34,9 @@ class AuthRepository {
     required String password,
     required String name,
     String? phone,
+    String role = 'patient',
+    Map<String, dynamic>? doctorProfile,
+    Map<String, dynamic>? patientProfile,
   }) async {
     final data = await _api.postBody(
       '/api/auth/register',
@@ -41,8 +44,10 @@ class AuthRepository {
         'email': email.trim(),
         'password': password,
         'name': name.trim(),
-        'role': 'patient',
-        if (phone != null && phone.isNotEmpty) 'phone': phone,
+        'role': role,
+        'phone': phone,
+        'doctorProfile': ?doctorProfile,
+        'patientProfile': ?patientProfile,
       },
     );
     return AuthData.fromJson((data as Map<String, dynamic>? ?? const {}));

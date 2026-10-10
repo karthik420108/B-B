@@ -435,6 +435,8 @@ class AiAnswer {
     this.uncertainty,
     this.disclaimer,
     this.question = '',
+    this.coverage,
+    this.conversationTurns = 0,
   });
 
   factory AiAnswer.fromJson(Map<String, dynamic> json) => AiAnswer(
@@ -450,6 +452,10 @@ class AiAnswer {
             ? Uncertainty.fromJson(json['uncertainty'] as Map<String, dynamic>)
             : null,
         disclaimer: json['disclaimer']?.toString(),
+        coverage: json['coverage'] is Map<String, dynamic>
+            ? AiCoverage.fromJson(json['coverage'] as Map<String, dynamic>)
+            : null,
+        conversationTurns: (json['conversationTurns'] as num?)?.toInt() ?? 0,
       );
 
   final String question;
@@ -459,6 +465,63 @@ class AiAnswer {
   final List<Citation> citations;
   final Uncertainty? uncertainty;
   final String? disclaimer;
+  final AiCoverage? coverage;
+  final int conversationTurns;
+}
+
+/// Which in-scope documents were readable, and which could not be analysed.
+class AiCoverage {
+  AiCoverage({
+    this.documentsInScope = 0,
+    this.documentsWithText = 0,
+    this.unreadable = const [],
+  });
+
+  factory AiCoverage.fromJson(Map<String, dynamic> json) => AiCoverage(
+        documentsInScope: (json['documentsInScope'] as num?)?.toInt() ?? 0,
+        documentsWithText: (json['documentsWithText'] as num?)?.toInt() ?? 0,
+        unreadable: (json['unreadable'] as List?)
+                ?.map((e) => UnreadableDocument.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            const [],
+      );
+
+  final int documentsInScope;
+  final int documentsWithText;
+  final List<UnreadableDocument> unreadable;
+
+  bool get hasUnreadable => unreadable.isNotEmpty;
+}
+
+class UnreadableDocument {
+  UnreadableDocument({this.documentId, this.documentName, this.status, this.reason});
+  factory UnreadableDocument.fromJson(Map<String, dynamic> json) => UnreadableDocument(
+        documentId: json['documentId']?.toString(),
+        documentName: json['documentName']?.toString(),
+        status: json['status']?.toString(),
+        reason: json['reason']?.toString(),
+      );
+  final String? documentId;
+  final String? documentName;
+  final String? status;
+  final String? reason;
+}
+
+/// One persisted turn of the doctor AI conversation.
+class ConversationMessage {
+  ConversationMessage({required this.role, required this.content, this.citations = const [], this.at});
+  factory ConversationMessage.fromJson(Map<String, dynamic> json) => ConversationMessage(
+        role: _s(json['role'], 'doctor'),
+        content: _s(json['content']),
+        citations: (json['citations'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+        at: _dt(json['at']),
+      );
+  final String role;
+  final String content;
+  final List<String> citations;
+  final DateTime? at;
+
+  bool get isDoctor => role == 'doctor';
 }
 
 class Uncertainty {
@@ -632,6 +695,7 @@ class DoctorBundle {
     required this.medications,
     required this.duplicateAlerts,
     required this.medicationAlerts,
+    this.shareId,
     this.patientDateOfBirth,
     this.generatedAt,
     this.permissions = const {},
@@ -639,7 +703,9 @@ class DoctorBundle {
 
   factory DoctorBundle.fromJson(Map<String, dynamic> json) {
     final patient = (json['patient'] as Map<String, dynamic>?) ?? const {};
+    final share = (json['share'] as Map<String, dynamic>?) ?? const {};
     return DoctorBundle(
+      shareId: share['id']?.toString(),
       patientName: _s(patient['name'], 'Patient'),
       patientDateOfBirth: _dt(patient['dateOfBirth']),
       documents: (json['documents'] as List?)
@@ -669,9 +735,14 @@ class DoctorBundle {
       medicationAlerts: json['medicationAlerts'] != null
           ? MedicationSafetyReport.fromJson(json['medicationAlerts'] as Map<String, dynamic>)
           : null,
+      generatedAt: json['generatedAt']?.toString(),
+      permissions: (share['permissions'] as Map<String, dynamic>?)?.cast<String, dynamic>() ??
+          (json['permissions'] as Map<String, dynamic>?)?.cast<String, dynamic>() ??
+          const {},
     );
   }
 
+  final String? shareId;
   final String patientName;
   final DateTime? patientDateOfBirth;
   final List<DocumentSummary> documents;

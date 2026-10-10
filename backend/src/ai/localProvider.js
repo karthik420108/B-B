@@ -1,6 +1,6 @@
 'use strict';
 
-const { fmtDate } = require('../services/retrievalService');
+const { fmtDate, tokenize: tokenizeLocal } = require('../services/retrievalService');
 
 /**
  * Local, offline AI provider.
@@ -48,17 +48,26 @@ function makeCitationTracker() {
   };
 }
 
-function detectIntents(q) {
-  const s = q.toLowerCase();
+function detectIntents(q, history = []) {
+  // Follow-ups carry little vocabulary ("what about the previous report?"), so
+  // intent detection also considers the doctor's earlier questions. Only prior
+  // question text is used - never the previous answer.
+  const context = Array.isArray(history)
+    ? history.filter((m) => m && m.role === 'doctor').map((m) => String(m.content || '')).join(' ')
+    : '';
+  const s = `${q} ${context}`.toLowerCase();
   const intents = new Set();
   if (/\b(medication|medicine|drug|prescri|tablet|capsule|dose)\b/.test(s)) intents.add('medications');
   if (/\b(allerg|intoleran|reaction)\b/.test(s)) intents.add('allergies');
   if (/\b(visit|admission|admitted|hospital|encounter|discharge|consult)\b/.test(s)) intents.add('visits');
   if (/\b(condition|diagnos|diagnos(?:es|is)|problem|disease|illness)\b/.test(s)) intents.add('conditions');
   if (/\b(trend|over time|history of|progression|series)\b/.test(s)) intents.add('trend');
-  if (/\b(compare|comparison|versus|vs\.?|difference between|changed)\b/.test(s)) intents.add('compare');
+  if (/\b(compare|comparison|versus|vs\.?|difference between|changed|previous|earlier|prior|six months|both)\b/.test(s)) intents.add('compare');
   if (/\b(summar|overview|medical history|full history|prepare.*(new|another) doctor|handover)\b/.test(s)) intents.add('summary');
   if (/\b(result|level|value|glucose|sugar|hb|hemoglobin|haemoglobin|cholesterol|tsh|t3|t4|creatinine|alt|ast|blood|test|measurement|reading)\b/.test(s)) intents.add('labs');
+  if (/\b(repeat|repeated|duplicate|redundant)\b/.test(s)) intents.add('duplicates');
+  if (/\b(missing|gap|unverified|incomplete|absent)\b/.test(s)) intents.add('missing');
+  if (/\b(extract|document|scan|letter|summary of the (file|document)|readable|illegible|unreadable)\b/.test(s)) intents.add('documents');
   return intents;
 }
 
@@ -75,11 +84,14 @@ function formatObservation(src) {
  * @param {object} params
  * @param {string} params.question
  * @param {Array} params.sources ranked chunks
+ * @param {boolean} [params.isDoctor=false]
+ * @param {string} [params.patientName]
+ * @param {Array} [params.history] prior turns (doctor questions only are used)
  * @returns {Promise<{answer:string, citations:Array, uncertainty:object, provider:string, model:string, usedSources:number}>}
  */
-async function answer({ question, sources }) {
+async function answer({ question, sources, isDoctor = false, patientName = null, history = [] }) {
   const tracker = makeCitationTracker();
-  const intents = detectIntents(question);
+  const intents = detectIntents(question, history);
   const lines = [];
   const caveats = [];
 
@@ -88,14 +100,27 @@ async function answer({ question, sources }) {
   const allergies = sources.filter((s) => s.kind === 'allergy');
   const encounters = sources.filter((s) => s.kind === 'encounter');
   const conditions = sources.filter((s) => s.kind === 'condition');
+  const documents = sources.filter((s) => s.kind === 'document');
+
+  // A follow-up with almost no vocabulary of its own inherits the prior intent
+  // so "what about the previous report?" still reads as a compare question.
+  const bareFollowUp = tokenizeLocal(question).length <= 3 && Array.isArray(history) && history.length > 0;
+  if (bareFollowUp && intents.size === 0) {
+    for (const prev of history.filter((m) => m && m.role === 'doctor').slice(-1)) {
+      for (const i of detectIntents(String(prev.content || ''), [])) intents.add(i);
+    }
+  }
 
   if (sources.length === 0) {
-    return {
-      answer: `I could not find any information in your records that relates to "${question}". `
+    const emptyMsg = isDoctor
+      ? `No relevant records were found in this patient's authorized share regarding "${question}". This patient may not have shared the relevant documents, or the information has not been recorded.`
+      : `I could not find any information in your records that relates to "${question}". `
         + 'This may mean the relevant record has not been uploaded yet, or it is stored under different wording. '
-        + 'I have not found evidence either way, so I cannot answer this from your documents.',
+        + 'I have not found evidence either way, so I cannot answer this from your documents.';
+    return {
+      answer: emptyMsg,
       citations: [],
-      uncertainty: { level: 'high', reason: 'No matching records were retrieved.', missing: true },
+      uncertainty: { level: 'high', reason: 'No matching records were retrieved from authorized scope.', missing: true },
       provider: name, model, usedSources: 0,
     };
   }
@@ -109,7 +134,7 @@ async function answer({ question, sources }) {
       grouped.get(key).push(l);
     }
     if (intents.has('compare')) {
-      lines.push('Here is a comparison based on the values found in your records:');
+      lines.push('Here is a comparison based on the values documented in the records:');
       for (const [, group] of grouped) {
         const sorted = group.slice().sort(byDateAsc);
         const latest = sorted[sorted.length - 1];
@@ -118,9 +143,12 @@ async function answer({ question, sources }) {
           lines.push(`- ${latest.label}: only one result is on file - ${formatObservation(latest)} ${tracker.cite(latest)} (no earlier value to compare against).`);
           continue;
         }
+        // Every dated value is listed so the full comparison is verifiable.
+        const series = sorted.map((s) => `${formatObservation(s)} ${tracker.cite(s)} on ${fmtDate(s.date)}`);
         const delta = latest.value != null && previous.value != null ? latest.value - previous.value : null;
         const dir = delta == null ? '' : delta > 0 ? `an increase of ${Math.abs(delta).toFixed(2)}` : delta < 0 ? `a decrease of ${Math.abs(delta).toFixed(2)}` : 'no change';
-        lines.push(`- ${latest.label}: ${formatObservation(previous)} ${tracker.cite(previous)} (${fmtDate(previous.date)}) compared with ${formatObservation(latest)} ${tracker.cite(latest)} (${fmtDate(latest.date)}) - ${dir || 'recorded change'}.`);
+        lines.push(`- ${latest.label}: ${series.join('; ')}.`);
+        lines.push(`  Change from the previous result (${fmtDate(previous.date)} to ${fmtDate(latest.date)}): ${dir || 'recorded change'}. Values from different laboratories or methods are not necessarily comparable - verify against the source reports.`);
       }
     } else if (intents.has('trend')) {
       lines.push('Here are the values on file, oldest to newest:');
@@ -185,14 +213,90 @@ async function answer({ question, sources }) {
     }
   }
 
+  // ---- Repeated / duplicate tests ----
+  if (intents.has('duplicates')) {
+    const grouped = new Map();
+    for (const l of labs) {
+      const key = l.normalized || l.label.toLowerCase();
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key).push(l);
+    }
+    const repeated = [...grouped.entries()].filter(([, grp]) => grp.length > 1);
+    if (repeated.length > 0) {
+      lines.push('Potentially repeated tests found in available records:');
+      for (const [, grp] of repeated) {
+        const sorted = grp.slice().sort(byDateAsc);
+        const instances = sorted.map((s) => `${formatObservation(s)} ${tracker.cite(s)} (${fmtDate(s.date)})`);
+        lines.push(`- ${sorted[0].label}: ${sorted.length} recorded instances: ${instances.join('; ')}.`);
+      }
+    } else {
+      lines.push('No repeated or duplicate tests were found among the available records.');
+    }
+  }
+
+  // ---- Missing information ----
+  if (intents.has('missing')) {
+    lines.push('Assessment of missing, unverified, or gap information:');
+    const missingDomains = [];
+    if (labs.length === 0) missingDomains.push('laboratory results');
+    if (meds.length === 0) missingDomains.push('medications');
+    if (allergies.length === 0) missingDomains.push('allergies');
+    if (conditions.length === 0) missingDomains.push('diagnosed conditions');
+    if (missingDomains.length > 0) {
+      lines.push(`- No recorded information found for: ${missingDomains.join(', ')}.`);
+    }
+    const unverifiedItems = sources.filter((s) => s.verification === 'unverified' || s.source === 'ai-extracted');
+    if (unverifiedItems.length > 0) {
+      lines.push(`- ${unverifiedItems.length} record(s) are machine-extracted or pending clinician verification: ${unverifiedItems.slice(0, 5).map((u) => `${u.label} ${tracker.cite(u)}`).join(', ')}.`);
+    } else {
+      lines.push('- All available records have been verified.');
+    }
+  }
+
   // ---- Summary intent: pull everything together ----
   if (intents.has('summary') && lines.length === 0) {
-    lines.push('Here is a summary drawn from your records:');
+    lines.push(isDoctor ? `Clinical summary of available records${patientName ? ` for ${patientName}` : ''}:` : 'Here is a summary drawn from your records:');
     if (conditions.length) lines.push(`- Conditions: ${conditions.map((c) => `${c.label} ${tracker.cite(c)}`).join(', ')}.`);
     if (allergies.length) lines.push(`- Allergies: ${allergies.map((a) => `${a.label} ${tracker.cite(a)}`).join(', ')}.`);
     if (meds.length) lines.push(`- Medications: ${meds.slice(0, 10).map((m) => `${m.label} ${tracker.cite(m)}`).join(', ')}.`);
     if (encounters.length) lines.push(`- Visits: ${encounters.slice(0, 10).map((e) => `${fmtDate(e.date)} at ${e.providerName || 'unknown provider'} ${tracker.cite(e)}`).join('; ')}.`);
     if (labs.length) lines.push(`- Recent results: ${labs.slice(0, 8).map((l) => `${l.label} ${l.value ?? ''}${l.unit ? ` ${l.unit}` : ''} (${fmtDate(l.date)}) ${tracker.cite(l)}`).join('; ')}.`);
+  }
+
+  // ---- Source documents (recovered text passages) ----
+  if (documents.length && (intents.has('documents') || intents.has('summary') || intents.size === 0 || lines.length === 0)) {
+    const byDoc = new Map();
+    for (const d of documents) {
+      if (!byDoc.has(d.documentId || d.documentName)) byDoc.set(d.documentId || d.documentName, []);
+      byDoc.get(d.documentId || d.documentName).push(d);
+    }
+    if (intents.has('documents') || intents.has('summary') || lines.length === 0) {
+      lines.push('Relevant passages recovered from the shared documents:');
+      for (const [, group] of byDoc) {
+        const head = group[0];
+        const excerpt = group
+          .map((g) => String(g.text || '').replace(/^From document [^:]+: /, ''))
+          .join(' … ')
+          .slice(0, 700);
+        lines.push(`- ${head.documentName}${head.date ? ` (${fmtDate(head.date)})` : ''}: ${excerpt} ${tracker.cite(head)}`);
+      }
+      if (!intents.has('documents') && !intents.has('summary') && lines.length === 1) {
+        caveats.push('Your question did not match a specific category, so I listed the closest matching document passages.');
+      }
+    }
+  }
+
+  // ---- Timeline of events ----
+  if (intents.has('summary') || intents.has('trend') || /\btimeline\b/i.test(question)) {
+    const timeline = [...labs, ...meds, ...conditions, ...allergies, ...encounters]
+      .filter((s) => s.date)
+      .sort(byDateAsc);
+    if (timeline.length) {
+      lines.push('Timeline of recorded events (oldest to newest):');
+      for (const ev of timeline.slice(0, 20)) {
+        lines.push(`- ${fmtDate(ev.date)}: ${ev.label}${ev.kind === 'observation' && ev.value != null ? ` = ${ev.value}${ev.unit ? ` ${ev.unit}` : ''}` : ''} (${ev.kind}) ${tracker.cite(ev)}`);
+      }
+    }
   }
 
   if (lines.length === 0) {
@@ -216,7 +320,9 @@ async function answer({ question, sources }) {
   };
 
   if (caveats.length) answer += `\n\nNote: ${caveats.join(' ')}`;
-  answer += '\n\nThis is a summary of your own records, not medical advice. Please confirm anything important with a clinician.';
+  answer += isDoctor
+    ? '\n\nGrounded in authorized patient records covered by active share grant. Clinical decision-making remains with the attending physician.'
+    : '\n\nThis is a summary of your own records, not medical advice. Please confirm anything important with a clinician.';
 
   return { answer, citations: tracker.list(), uncertainty, provider: name, model, usedSources: sources.length };
 }

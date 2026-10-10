@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
@@ -6,6 +8,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/utils/formatters.dart';
 import '../../models/models.dart';
 import '../../providers/providers.dart';
+import '../../widgets/qr_scanner_dialog.dart';
 
 class CreateShareScreen extends ConsumerStatefulWidget {
   const CreateShareScreen({super.key});
@@ -48,6 +51,73 @@ class _CreateShareScreenState extends ConsumerState<CreateShareScreen> {
     } catch (_) {
       // Directory is optional; the share can be created without naming a doctor.
     }
+  }
+
+  /// Scan a doctor's QR to nominate them. The payload identifies the doctor only —
+  /// no medical data is disclosed by scanning. The doctor's verified identity is
+  /// confirmed against the server directory before selection.
+  Future<void> _scanDoctorQr() async {
+    final scanned = await QrScannerDialog.show(
+      context,
+      title: 'Scan Doctor QR Code',
+      hint: 'Paste or scan the doctor’s QR payload…',
+      expectedType: 'doctor',
+    );
+    if (scanned == null || scanned.trim().isEmpty) return;
+
+    Map<String, dynamic> payload;
+    try {
+      final decoded = jsonDecode(scanned.trim());
+      if (decoded is! Map<String, dynamic>) throw const FormatException();
+      payload = decoded;
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid doctor QR payload. Expected a JSON object.')),
+      );
+      return;
+    }
+
+    if (payload['type'] != 'doctor') {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This QR is not a doctor invitation code.')),
+      );
+      return;
+    }
+
+    final doctorId = payload['doctorId']?.toString() ?? '';
+    if (doctorId.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Doctor QR is missing a doctor identifier.')),
+      );
+      return;
+    }
+
+    // Confirm the doctor's identity against the server directory.
+    if (!_doctorListLoaded) await _loadDoctors();
+    if (!mounted) return;
+    final match = _doctors.where((d) => d['id'] == doctorId).firstOrNull;
+    if (match == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This doctor is not in the verified directory.')),
+      );
+      return;
+    }
+
+    final verification = (match['verification'] ?? 'unverified').toString();
+    if (verification != 'verified' && verification != 'development') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${match['name']} is not a verified doctor ($verification).')),
+      );
+      return;
+    }
+
+    setState(() => _selectedDoctor = match);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${match['name']} selected as the nominated doctor.')),
+    );
   }
 
   @override
@@ -113,18 +183,62 @@ class _CreateShareScreenState extends ConsumerState<CreateShareScreen> {
                 decoration: const InputDecoration(labelText: 'Label (optional)', prefixIcon: Icon(Icons.sell_outlined)),
               ),
               const SizedBox(height: 14),
-              DropdownButtonFormField<Map<String, dynamic>>(
-                initialValue: _selectedDoctor,
-                hint: const Text('Any doctor who claims the link'),
-                decoration: const InputDecoration(labelText: 'Nominated doctor (optional)', prefixIcon: Icon(Icons.medical_services_outlined)),
-                items: _doctors
-                    .map((d) => DropdownMenuItem(
-                          value: d,
-                          child: Text('${d['name']}${d['specialty'] != null ? ' — ${d['specialty']}' : ''}', overflow: TextOverflow.ellipsis),
-                        ))
-                    .toList(),
-                onChanged: (v) => setState(() => _selectedDoctor = v),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<Map<String, dynamic>>(
+                      initialValue: _selectedDoctor,
+                      hint: const Text('Any doctor who claims the link'),
+                      decoration: const InputDecoration(labelText: 'Nominated doctor (optional)', prefixIcon: Icon(Icons.medical_services_outlined)),
+                      items: _doctors
+                          .map((d) => DropdownMenuItem(
+                                value: d,
+                                child: Text('${d['name']}${d['specialty'] != null ? ' — ${d['specialty']}' : ''}', overflow: TextOverflow.ellipsis),
+                              ))
+                          .toList(),
+                      onChanged: (v) => setState(() => _selectedDoctor = v),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    tooltip: 'Scan Doctor QR',
+                    icon: const Icon(Icons.qr_code_scanner),
+                    onPressed: _scanDoctorQr,
+                  ),
+                ],
               ),
+              if (_selectedDoctor != null) ...[
+                const SizedBox(height: 8),
+                Card(
+                  color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.4),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.verified_user_outlined),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(_selectedDoctor!['name']?.toString() ?? 'Doctor', style: theme.textTheme.titleSmall),
+                              Text(
+                                [
+                                  _selectedDoctor!['specialty']?.toString(),
+                                  _selectedDoctor!['clinicName']?.toString(),
+                                  'Verification: ${_selectedDoctor!['verification'] ?? 'unknown'}',
+                                ].whereType<String>().join(' • '),
+                                style: theme.textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 20),
               Text('Scope', style: theme.textTheme.titleSmall),
               const SizedBox(height: 6),

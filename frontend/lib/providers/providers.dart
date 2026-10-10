@@ -103,11 +103,23 @@ class AuthNotifier extends Notifier<AuthState> {
     required String email,
     required String password,
     required String name,
+    String? phone,
+    String role = 'patient',
+    Map<String, dynamic>? doctorProfile,
+    Map<String, dynamic>? patientProfile,
   }) async {
     state = state.copyWith(busy: true, error: null);
     try {
       final repo = ref.read(authRepositoryProvider);
-      final data = await repo.register(email: email, password: password, name: name);
+      final data = await repo.register(
+        email: email,
+        password: password,
+        name: name,
+        phone: phone,
+        role: role,
+        doctorProfile: doctorProfile,
+        patientProfile: patientProfile,
+      );
       await repo.persistSession(data);
       state = AuthState(status: AuthStatus.authenticated, user: data.user);
     } catch (e) {

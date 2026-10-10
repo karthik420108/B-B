@@ -21,6 +21,11 @@ const registerSchema = z.object({
     licenseNumber: z.string().max(80).optional(),
     clinicName: z.string().max(160).optional(),
   }).optional(),
+  patientProfile: z.object({
+    dateOfBirth: z.string().max(20).optional(),
+    bloodGroup: z.enum(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'unknown']).optional(),
+    sex: z.enum(['female', 'male', 'intersex', 'unknown', 'prefer_not_to_say']).optional(),
+  }).optional(),
 });
 
 const loginSchema = z.object({

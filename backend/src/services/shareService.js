@@ -2,7 +2,7 @@
 
 const {
   ShareGrant, Document, Observation, Condition, AllergyIntolerance,
-  MedicationStatement, Encounter, User, PatientProfile,
+  MedicationStatement, Encounter, User, PatientProfile, DoctorProfile,
 } = require('../models');
 const { randomToken, hashToken } = require('../utils/crypto');
 const { AppError, forbidden, notFound, badRequest } = require('../utils/errors');
@@ -66,15 +66,28 @@ async function createShare(actor, payload, { req = null } = {}) {
 
   const ownedIds = includeAll ? [] : await validateOwnedDocuments(actor._id, documentIds);
 
-  // Resolve an optional pre-designated doctor.
+  // Resolve an optional pre-designated doctor. The doctor must exist AND be
+  // verified — unverified doctors cannot receive shares (spec §5).
   let doctorUser = null; let resolvedEmail = doctorEmail; let resolvedName = doctorName; let resolvedSpecialty = doctorSpecialty;
   if (doctorUserId) {
     doctorUser = await User.findOne({ _id: doctorUserId, role: 'doctor', status: 'active' });
     if (!doctorUser) throw badRequest('The selected doctor account does not exist.');
+    const profile = await DoctorProfile.findOne({ user: doctorUser._id }).select('verification.status');
+    const vStatus = profile && profile.verification ? profile.verification.status : 'unverified';
+    if (vStatus !== 'verified' && vStatus !== 'development') {
+      throw badRequest('The selected doctor is not verified and cannot receive shares yet.');
+    }
     resolvedEmail = doctorUser.email; resolvedName = resolvedName || doctorUser.name;
   } else if (doctorEmail) {
     const found = await User.findOne({ email: String(doctorEmail).toLowerCase(), role: 'doctor', status: 'active' });
-    if (found) { doctorUser = found._id; resolvedName = resolvedName || found.name; }
+    if (found) {
+      const profile = await DoctorProfile.findOne({ user: found._id }).select('verification.status');
+      const vStatus = profile && profile.verification ? profile.verification.status : 'unverified';
+      if (vStatus !== 'verified' && vStatus !== 'development') {
+        throw badRequest('The selected doctor is not verified and cannot receive shares yet.');
+      }
+      doctorUser = found._id; resolvedName = resolvedName || found.name;
+    }
   }
 
   const rawToken = randomToken(32);
@@ -162,6 +175,20 @@ function shareWithHistory(grant) {
   };
 }
 
+/** Access history for one share, for the owning patient only. */
+function shareAccessHistory(grant) {
+  return {
+    id: String(grant._id),
+    status: grant.status,
+    accessCount: grant.accessCount,
+    lastAccessedAt: grant.lastAccessedAt,
+    accessLog: (grant.accessLog || []).map((e) => ({
+      at: e.at, action: e.action, actorRole: e.actorRole, detail: e.detail,
+      actorUser: e.actorUser ? String(e.actorUser) : null,
+    })),
+  };
+}
+
 /** Revoke a share. Effective immediately server-side. */
 async function revokeShare(actor, shareId, { reason, req = null } = {}) {
   ensurePatient(actor);
@@ -235,6 +262,8 @@ async function inspectToken(rawToken, { req = null } = {}) {
   const patientUser = await User.findById(grant.patient).select('name');
   return {
     valid: true,
+    status: grant.status,
+    isActive: grant.isActive(),
     shareId: String(grant._id),
     doctorName: grant.doctorName,
     doctorSpecialty: grant.doctorSpecialty,
@@ -446,6 +475,7 @@ module.exports = {
   listPatientShares,
   getPatientShare,
   shareWithHistory,
+  shareAccessHistory,
   revokeShare,
   resolveAccess,
   resolveAccessByGrant,
