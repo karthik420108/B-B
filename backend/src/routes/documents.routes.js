@@ -60,7 +60,17 @@ router.get('/:id', asyncHandler(async (req, res) => {
     MedicationStatement.find({ sourceDocument: doc._id, deletedAt: null }).lean(),
     Encounter.find({ sourceDocument: doc._id, deletedAt: null }).lean(),
   ]);
-  data.extracted = { observations, conditions, allergies, medications, encounters };
+  // `.lean()` returns Mongo's `_id`; every other endpoint exposes `id`. The
+  // review screen PATCHes `/api/records/:kind/:id/verify`, so without this the
+  // client sends an empty id and gets "Route not found".
+  const withId = (row) => ({ ...row, id: row._id });
+  data.extracted = {
+    observations: observations.map(withId),
+    conditions: conditions.map(withId),
+    allergies: allergies.map(withId),
+    medications: medications.map(withId),
+    encounters: encounters.map(withId),
+  };
   return ok(res, data);
 }));
 

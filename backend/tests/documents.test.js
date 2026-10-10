@@ -131,3 +131,33 @@ test('protected document file can be downloaded by its owner only', async () => 
   assert.equal(res.status, 200);
   assert.match(res.headers['content-type'], /text\/plain/);
 });
+
+test('extracted records expose the client `id` the review screen verifies with', async () => {
+  const u = await h.register('patient');
+  const up = await h.request(h.app).post('/api/documents')
+    .set('Authorization', `Bearer ${u.accessToken}`)
+    .field('category', 'laboratory')
+    .attach('file', Buffer.from(LAB_TEXT), { filename: 'lab.txt', contentType: 'text/plain' });
+  assert.equal(up.status, 201);
+  const docId = up.body.data.document.id;
+
+  const detail = await h.request(h.app).get(`/api/documents/${docId}`).set('Authorization', `Bearer ${u.accessToken}`);
+  const extracted = detail.body.data.extracted;
+  assert.ok(extracted.observations.length > 0);
+
+  // The UI builds PATCH /api/records/:kind/:id/verify from `id`. Without it the
+  // request collapses to /records/<kind>//verify and returns "Route not found".
+  for (const [kind, rows] of Object.entries(extracted)) {
+    for (const row of rows) {
+      assert.ok(row.id, `${kind} record is missing id`);
+      assert.equal(String(row.id), String(row._id), `${kind} id must match _id`);
+    }
+  }
+
+  const obs = extracted.observations[0];
+  const res = await h.request(h.app).patch(`/api/records/observation/${obs.id}/verify`)
+    .set('Authorization', `Bearer ${u.accessToken}`)
+    .send({ verification: 'verified' });
+  assert.equal(res.status, 200, 'verification using the client id must succeed');
+  assert.equal(res.body.data.verification, 'verified');
+});

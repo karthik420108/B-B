@@ -1164,6 +1164,12 @@ class DashboardData {
 }
 
 /// Extracted data attached to a document detail response.
+/// Extracted children can arrive raw from Mongo (`_id`), while every model
+/// reads `id`. Normalise so record ids - and the `/records/:kind/:id/verify`
+/// calls built from them - are never empty.
+Map<String, dynamic> _ensureId(Map<String, dynamic> row) =>
+    row['id'] == null ? {...row, 'id': row['_id']} : row;
+
 class ExtractedBundle {
   ExtractedBundle({
     this.observations = const [],
@@ -1175,27 +1181,16 @@ class ExtractedBundle {
 
   factory ExtractedBundle.fromJson(Map<String, dynamic>? json) {
     if (json == null) return ExtractedBundle();
+    List<Map<String, dynamic>> rows(String key) => (json[key] as List?)
+            ?.map((e) => _ensureId(e as Map<String, dynamic>))
+            .toList() ??
+        const [];
     return ExtractedBundle(
-      observations: (json['observations'] as List?)
-              ?.map((e) => Observation.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const [],
-      conditions: (json['conditions'] as List?)
-              ?.map((e) => ConditionRecord.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const [],
-      allergies: (json['allergies'] as List?)
-              ?.map((e) => Allergy.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const [],
-      medications: (json['medications'] as List?)
-              ?.map((e) => Medication.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const [],
-      encounters: (json['encounters'] as List?)
-              ?.map((e) => EncounterRecord.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          const [],
+      observations: rows('observations').map(Observation.fromJson).toList(),
+      conditions: rows('conditions').map(ConditionRecord.fromJson).toList(),
+      allergies: rows('allergies').map(Allergy.fromJson).toList(),
+      medications: rows('medications').map(Medication.fromJson).toList(),
+      encounters: rows('encounters').map(EncounterRecord.fromJson).toList(),
     );
   }
 
