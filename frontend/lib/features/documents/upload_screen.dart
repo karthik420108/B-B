@@ -76,12 +76,20 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
       // Extraction runs inline; refresh the list now so the new doc shows up.
       ref.invalidate(documentsProvider);
       if (!mounted) return;
-      final extracted = (data['extraction'] as List?)?.length ?? 0;
+      final extraction = data['extraction'];
+      final extracted = proposedRecordCount(extraction);
+      final extractionError = extractionFailure(extraction);
       setState(() {
         _extracting = false;
         _busy = false;
       });
-      if (extracted > 0) {
+      if (extractionError != null) {
+        // The upload itself succeeded; extraction can be retried later.
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Document uploaded, but extraction failed: $extractionError')),
+        );
+        if (id.isNotEmpty) context.push('/documents/$id');
+      } else if (extracted > 0) {
         await showModalBottomSheet<void>(
           context: context,
           showDragHandle: true,
@@ -224,7 +232,7 @@ class _SuccessSheet extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: FilledButton(
-              onPressed: () => context.go('/documents/$id/review'),
+              onPressed: () => context.push('/documents/$id/review'),
               child: const Text('Review & verify'),
             ),
           ),
@@ -232,7 +240,7 @@ class _SuccessSheet extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton(
-              onPressed: () => context.go('/documents/$id'),
+              onPressed: () => context.push('/documents/$id'),
               child: const Text('View document'),
             ),
           ),

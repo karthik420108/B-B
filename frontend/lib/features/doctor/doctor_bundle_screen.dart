@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
 import '../../models/models.dart';
 import '../../providers/providers.dart';
 import '../../widgets/common_widgets.dart';
+import 'doctor_ai_panel.dart';
 
 final doctorBundleProvider = FutureProvider.family<DoctorBundle, String>((ref, token) {
   return ref.watch(doctorRepositoryProvider).bundle(token);
@@ -22,7 +22,7 @@ class DoctorBundleScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Patient records'),
+        title: const Text('Patient Records'),
         actions: [
           IconButton(
             tooltip: 'Refresh (re-checks authorization server-side)',
@@ -40,7 +40,7 @@ class DoctorBundleScreen extends ConsumerWidget {
   }
 }
 
-/// Dedicated denied/expired/revoked presentation (kept honest about why).
+/// Dedicated denied/expired/revoked presentation.
 class _AccessDenied extends StatelessWidget {
   const _AccessDenied({required this.error, required this.onRetry});
   final Object error;
@@ -49,28 +49,27 @@ class _AccessDenied extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isAuth = error is ApiException && (error as ApiException).isAuthorizationFailure;
+    final msg = friendlyError(error);
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(isAuth ? Icons.lock_outline : Icons.link_off, size: 56, color: theme.colorScheme.error),
+            Icon(Icons.lock_person_outlined, size: 64, color: theme.colorScheme.error),
             const SizedBox(height: 16),
-            Text(isAuth ? 'Access denied' : 'Access no longer available', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+            Text('Access denied or expired', style: theme.textTheme.titleLarge),
             const SizedBox(height: 8),
             Text(
-              isAuth
-                  ? 'This token is invalid, expired, revoked, or belongs to a different account. The server verifies authorization on every request — no records are shown without it.'
-                  : friendlyError(error),
+              msg,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium,
             ),
             const SizedBox(height: 20),
             FilledButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh), label: const Text('Check again')),
             const SizedBox(height: 8),
-            TextButton(onPressed: () => context.go('/doctor'), child: const Text('Back to doctor view')),
+            TextButton(onPressed: () => context.go('/doctor'), child: const Text('Back to doctor dashboard')),
           ],
         ),
       ),
@@ -78,21 +77,31 @@ class _AccessDenied extends StatelessWidget {
   }
 }
 
-class RefView extends StatelessWidget {
+class RefView extends ConsumerStatefulWidget {
   const RefView({super.key, required this.bundle, required this.token});
   final DoctorBundle bundle;
   final String token;
 
   @override
+  ConsumerState<RefView> createState() => _RefViewState();
+}
+
+class _RefViewState extends ConsumerState<RefView> {
+  void _viewDocument(DocumentSummary doc) {
+    context.push('/doctor/${widget.token}/document/${doc.id}', extra: doc);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final permissions = bundle.permissions;
+    final permissions = widget.bundle.permissions;
 
     return RefreshIndicator(
-      onRefresh: () async {},
+      onRefresh: () async => ref.refresh(doctorBundleProvider(widget.token).future),
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // Patient Identity & Authorization Header
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -101,107 +110,174 @@ class RefView extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      CircleAvatar(radius: 22, child: Text(bundle.patientName.substring(0, 1).toUpperCase())),
+                      CircleAvatar(
+                        radius: 24,
+                        backgroundColor: theme.colorScheme.primaryContainer,
+                        foregroundColor: theme.colorScheme.onPrimaryContainer,
+                        child: Text(widget.bundle.patientName.substring(0, 1).toUpperCase()),
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(bundle.patientName, style: theme.textTheme.titleMedium),
-                            if (bundle.patientDateOfBirth != null)
-                              Text('DOB: ${formatDate(bundle.patientDateOfBirth)}', style: theme.textTheme.bodySmall),
+                            Text(widget.bundle.patientName, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                            if (widget.bundle.patientDateOfBirth != null)
+                              Text('DOB: ${formatDate(widget.bundle.patientDateOfBirth)}', style: theme.textTheme.bodySmall),
                           ],
                         ),
                       ),
+                      Chip(
+                        avatar: const Icon(Icons.shield_outlined, size: 16),
+                        label: const Text('Authorized Share'),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Text('Viewing only the sections the patient authorized for this share.', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline)),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Viewing records within the scope explicitly consented by the patient. Every request and document retrieval is verified server-side.',
+                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline),
+                  ),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 16),
-          if (permissions['observations'] == true && bundle.observations.isNotEmpty)
+
+          // DOCTOR AI ASSISTANT SECTION (patient-history aware, multi-turn)
+          DoctorAiPanel(shareIdOrToken: widget.token, bundle: widget.bundle),
+          const SizedBox(height: 16),
+
+          // DOCUMENTS SECTION (INTERACTIVE)
+          if (widget.bundle.documents.isNotEmpty)
+            _SectionCard(
+              icon: Icons.folder_outlined,
+              title: 'Documents (${widget.bundle.documents.length})',
+              child: Column(
+                children: [
+                  for (final d in widget.bundle.documents)
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(
+                        radius: 18,
+                        backgroundColor: theme.colorScheme.primaryContainer,
+                        child: Icon(categoryIcon(d.category), size: 18),
+                      ),
+                      title: Text(d.originalName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: Text('${formatDate(d.eventDate)} • ${titleCase(d.category)} • ${formatBigBytes(d.size)}', style: theme.textTheme.bodySmall),
+                      trailing: FilledButton.tonal(
+                        onPressed: () => _viewDocument(d),
+                        child: const Text('View / Download'),
+                      ),
+                      onTap: () => _viewDocument(d),
+                    ),
+                ],
+              ),
+            ),
+
+          // LAB RESULTS SECTION
+          if (permissions['observations'] == true && widget.bundle.observations.isNotEmpty)
             _SectionCard(
               icon: Icons.science_outlined,
-              title: 'Lab results (${bundle.observations.length})',
+              title: 'Lab Results (${widget.bundle.observations.length})',
               child: Column(
                 children: [
-                  for (final o in bundle.observations)
+                  for (final o in widget.bundle.observations)
                     ListTile(
                       dense: true,
                       contentPadding: EdgeInsets.zero,
-                      title: Text(o.testName),
-                      subtitle: Text('${o.providerName ?? '—'}  •  ${formatDate(o.date)}', style: theme.textTheme.bodySmall),
-                      trailing: Text(o.displayValue, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                      title: Text(o.testName, style: TextStyle(fontWeight: o.abnormal == true ? FontWeight.bold : FontWeight.normal)),
+                      subtitle: Text('${o.providerName ?? 'Clinical lab'} • ${formatDate(o.date)}', style: theme.textTheme.bodySmall),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (o.abnormal == true) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(color: theme.colorScheme.errorContainer, borderRadius: BorderRadius.circular(4)),
+                              child: Text('Abnormal', style: TextStyle(fontSize: 10, color: theme.colorScheme.onErrorContainer)),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                          Text(o.displayValue, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                        ],
+                      ),
                     ),
                 ],
               ),
             ),
-          if (permissions['medications'] == true && bundle.medications.isNotEmpty)
+
+          // MEDICATIONS SECTION
+          if (permissions['medications'] == true && widget.bundle.medications.isNotEmpty)
             _SectionCard(
               icon: Icons.medication_outlined,
-              title: 'Medications (${bundle.medications.length})',
+              title: 'Medications (${widget.bundle.medications.length})',
               child: Column(
                 children: [
-                  for (final m in bundle.medications)
+                  for (final m in widget.bundle.medications)
                     ListTile(
                       dense: true,
                       contentPadding: EdgeInsets.zero,
-                      title: Text(m.name),
-                      subtitle: Text([m.strength, m.frequency, m.route].whereType<String>().join(' • '), style: theme.textTheme.bodySmall),
-                      trailing: Icon(m.isActive ? Icons.circle : Icons.circle_outlined, size: 12, color: theme.colorScheme.primary),
+                      title: Text(m.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: Text([m.strength, m.frequency, m.route, m.status].whereType<String>().join(' • '), style: theme.textTheme.bodySmall),
+                      trailing: Icon(m.isActive ? Icons.check_circle : Icons.circle_outlined, size: 16, color: m.isActive ? Colors.green : Colors.grey),
                     ),
                 ],
               ),
             ),
-          if (permissions['allergies'] == true && bundle.allergies.isNotEmpty)
+
+          // ALLERGIES SECTION
+          if (permissions['allergies'] == true && widget.bundle.allergies.isNotEmpty)
             _SectionCard(
               icon: Icons.report_problem_outlined,
-              title: 'Allergies (${bundle.allergies.length})',
+              title: 'Allergies (${widget.bundle.allergies.length})',
               child: Column(
                 children: [
-                  for (final a in bundle.allergies)
+                  for (final a in widget.bundle.allergies)
                     ListTile(
                       dense: true,
                       contentPadding: EdgeInsets.zero,
-                      title: Text(a.substance),
+                      title: Text(a.substance, style: const TextStyle(fontWeight: FontWeight.w600)),
                       subtitle: Text([a.severity, a.reaction].whereType<String>().join(' • '), style: theme.textTheme.bodySmall),
                     ),
                 ],
               ),
             ),
-          if (permissions['timeline'] == true && bundle.conditions.isNotEmpty)
+
+          // CONDITIONS SECTION
+          if (permissions['timeline'] == true && widget.bundle.conditions.isNotEmpty)
             _SectionCard(
               icon: Icons.health_and_safety_outlined,
-              title: 'Conditions (${bundle.conditions.length})',
+              title: 'Conditions (${widget.bundle.conditions.length})',
               child: Column(
                 children: [
-                  for (final c in bundle.conditions)
+                  for (final c in widget.bundle.conditions)
                     ListTile(
                       dense: true,
                       contentPadding: EdgeInsets.zero,
-                      title: Text(c.name),
+                      title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w600)),
                       subtitle: Text(c.status ?? '', style: theme.textTheme.bodySmall),
                       trailing: Text(formatDate(c.onsetDate), style: theme.textTheme.labelSmall),
                     ),
                 ],
               ),
             ),
-          if (permissions['duplicateAlerts'] == true && bundle.duplicateAlerts.isNotEmpty)
+
+          // DUPLICATE-TEST ALERTS SECTION
+          if (permissions['duplicateAlerts'] == true && widget.bundle.duplicateAlerts.isNotEmpty)
             _SectionCard(
               icon: Icons.content_copy_outlined,
-              title: 'Duplicate-test alerts (${bundle.duplicateAlerts.length})',
+              title: 'Duplicate-Test Alerts (${widget.bundle.duplicateAlerts.length})',
               child: Column(
                 children: [
-                  for (final f in bundle.duplicateAlerts)
+                  for (final f in widget.bundle.duplicateAlerts)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.info_outline, size: 16),
+                          const Icon(Icons.info_outline, size: 16, color: Colors.orange),
                           const SizedBox(width: 6),
                           Expanded(child: Text('${f.normalizedTestName}: ${f.reason}', style: theme.textTheme.bodySmall)),
                           if (f.gapDays != null) Text('${f.gapDays}d apart', style: theme.textTheme.bodySmall),
@@ -211,20 +287,22 @@ class RefView extends StatelessWidget {
                 ],
               ),
             ),
-          if (bundle.medicationAlerts != null &&
-              (bundle.medicationAlerts!.interactions.isNotEmpty || bundle.medicationAlerts!.duplicates.isNotEmpty))
+
+          // MEDICATION SAFETY ALERTS
+          if (widget.bundle.medicationAlerts != null &&
+              (widget.bundle.medicationAlerts!.interactions.isNotEmpty || widget.bundle.medicationAlerts!.duplicates.isNotEmpty))
             _SectionCard(
               icon: Icons.warning_amber_outlined,
-              title: 'Medication safety alerts',
+              title: 'Medication Safety Alerts',
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  for (final i in bundle.medicationAlerts!.interactions)
+                  for (final i in widget.bundle.medicationAlerts!.interactions)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       child: Text('• ${i.title} — ${i.effect}', style: theme.textTheme.bodySmall),
                     ),
-                  for (final d in bundle.medicationAlerts!.duplicates)
+                  for (final d in widget.bundle.medicationAlerts!.duplicates)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       child: Text('• Duplicate: ${d.normalizedTestName} — ${d.recommendation}', style: theme.textTheme.bodySmall),
@@ -237,26 +315,10 @@ class RefView extends StatelessWidget {
                 ],
               ),
             ),
-          if (permissions['summary'] == true && bundle.documents.isNotEmpty)
-            _SectionCard(
-              icon: Icons.folder_outlined,
-              title: 'Documents (${bundle.documents.length})',
-              child: Column(
-                children: [
-                  for (final d in bundle.documents)
-                    ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(d.originalName, maxLines: 1, overflow: TextOverflow.ellipsis),
-                      subtitle: Text(formatDate(d.eventDate), style: theme.textTheme.bodySmall),
-                      trailing: Text(d.extractionStatus, style: theme.textTheme.labelSmall),
-                    ),
-                ],
-              ),
-            ),
-          const SizedBox(height: 12),
+
+          const SizedBox(height: 16),
           Text(
-            'Authorized access only. This view can be revoked by the patient at any time; each request is re-checked against the current share status.',
+            'Authorized access only. Every action is logged in the patient\'s audit history.',
             style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.outline),
           ),
         ],

@@ -43,7 +43,42 @@ class _DocumentDetailScreenState extends ConsumerState<DocumentDetailScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Document')),
+      appBar: AppBar(
+        title: const Text('Document'),
+        // Explicit back: `AppBar` only implies one when there is history to pop,
+        // which is not the case when this screen is reached via `context.go`.
+        leading: BackButton(
+          onPressed: () {
+            final nav = Navigator.of(context);
+            if (nav.canPop()) {
+              nav.pop();
+            } else {
+              context.go('/documents');
+            }
+          },
+        ),
+      ),
+      // Explicit way out: this screen is reached with `context.go`, so there is
+      // often no history to pop and no implied back arrow.
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Done viewing?',
+                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
+            ),
+            const SizedBox(width: 12),
+            FilledButton.icon(
+              onPressed: () => context.go('/documents'),
+              icon: const Icon(Icons.arrow_back, size: 18),
+              label: const Text('Back to documents'),
+            ),
+          ],
+        ),
+      ),
       body: AsyncView<DocumentDetail>(
         value: detail,
         onRetry: () => ref.invalidate(documentDetailProvider(widget.id)),

@@ -16,6 +16,18 @@ const logger = require('../../utils/logger');
 let workerPromise = null;
 let idleTimer = null;
 
+/**
+ * Drop the current worker and terminate it in the background. Used both on idle
+ * and after a worker-level error so the next call starts from a clean worker.
+ */
+function resetWorker() {
+  const pending = workerPromise;
+  workerPromise = null;
+  if (pending) {
+    pending.then((w) => w.terminate()).catch(() => { /* ignore */ });
+  }
+}
+
 async function getWorker() {
   if (!workerPromise) {
     fs.mkdirSync(config.ocr.cacheDir, { recursive: true });
@@ -23,6 +35,14 @@ async function getWorker() {
     workerPromise = createWorker(config.ocr.languages, undefined, {
       cachePath: config.ocr.cacheDir,
       logger: () => {},
+      // tesseract.js re-throws worker errors asynchronously when no errorHandler
+      // is supplied, which surfaces as an uncaught exception and takes the whole
+      // process down (e.g. an unreadable/corrupt image). Swallow it here: the
+      // individual recognize() call still rejects and is handled by the caller.
+      errorHandler: (err) => {
+        logger.warn('OCR worker error: %s', err && err.message ? err.message : err);
+        resetWorker();
+      },
     }).catch((err) => {
       workerPromise = null;
       throw err;
@@ -33,14 +53,8 @@ async function getWorker() {
 
 function scheduleIdleStop() {
   if (idleTimer) clearTimeout(idleTimer);
-  idleTimer = setTimeout(async () => {
-    if (workerPromise) {
-      try {
-        const w = await workerPromise;
-        await w.terminate();
-      } catch { /* ignore */ }
-      workerPromise = null;
-    }
+  idleTimer = setTimeout(() => {
+    resetWorker();
   }, 60_000);
   if (idleTimer.unref) idleTimer.unref();
 }

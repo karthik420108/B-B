@@ -34,6 +34,9 @@ class AuthRepository {
     required String password,
     required String name,
     String? phone,
+    String role = 'patient',
+    Map<String, dynamic>? doctorProfile,
+    Map<String, dynamic>? patientProfile,
   }) async {
     final data = await _api.postBody(
       '/api/auth/register',
@@ -41,8 +44,10 @@ class AuthRepository {
         'email': email.trim(),
         'password': password,
         'name': name.trim(),
-        'role': 'patient',
-        if (phone != null && phone.isNotEmpty) 'phone': phone,
+        'role': role,
+        'phone': phone,
+        'doctorProfile': ?doctorProfile,
+        'patientProfile': ?patientProfile,
       },
     );
     return AuthData.fromJson((data as Map<String, dynamic>? ?? const {}));
@@ -74,6 +79,11 @@ class AuthRepository {
 
   /// Restore a cached session (tokens + user) without hitting the network.
   Future<User?> restoreSession() async {
+    // Load the persisted session into memory first so the token this instance
+    // sends always matches the cached user this instance displays. Without
+    // this, a second app window/tab logging in would overwrite the shared
+    // storage and this instance would send the wrong role's token.
+    await _tokens.loadSession();
     final userJson = await _tokens.userJson;
     if (userJson == null || userJson.isEmpty || userJson == 'null') return null;
     try {

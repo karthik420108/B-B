@@ -243,7 +243,7 @@ async function runExtraction(documentId, { force = false, req = null } = {}) {
       ocrConfidence: recovered.ocrConfidence,
     };
   } catch (err) {
-    logger.error('Extraction pipeline error: %s', err.message);
+    logger.error('Extraction pipeline error: %s', (err && err.message) || String(err));
     doc.extractionStatus = 'failed';
     doc.extractionError = 'Unexpected error during extraction. You can retry.';
     await doc.save().catch(() => {});

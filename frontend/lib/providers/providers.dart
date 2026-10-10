@@ -8,8 +8,10 @@ import '../services/ai_repository.dart';
 import '../services/auth_repository.dart';
 import '../services/doctor_repository.dart';
 import '../services/documents_repository.dart';
+import '../services/medication_repository.dart';
 import '../services/patient_repository.dart';
 import '../services/records_repository.dart';
+import '../services/reminder_scheduler.dart';
 import '../services/settings_repository.dart';
 import '../services/share_repository.dart';
 
@@ -50,6 +52,14 @@ final shareRepositoryProvider = Provider<ShareRepository>(
 final doctorRepositoryProvider = Provider<DoctorRepository>(
   (ref) => DoctorRepository(ref.watch(apiClientProvider)),
 );
+
+final medicationRepositoryProvider = Provider<MedicationRepository>(
+  (ref) => MedicationRepository(ref.watch(apiClientProvider)),
+);
+
+/// Platform notification scheduler (browser notifications on web; no-op
+/// elsewhere). See [ReminderScheduler] for the documented platform limits.
+final reminderSchedulerProvider = Provider<ReminderScheduler>((ref) => createReminderScheduler());
 
 // ---------------------------------------------------------------------------
 // Auth state
@@ -103,11 +113,23 @@ class AuthNotifier extends Notifier<AuthState> {
     required String email,
     required String password,
     required String name,
+    String? phone,
+    String role = 'patient',
+    Map<String, dynamic>? doctorProfile,
+    Map<String, dynamic>? patientProfile,
   }) async {
     state = state.copyWith(busy: true, error: null);
     try {
       final repo = ref.read(authRepositoryProvider);
-      final data = await repo.register(email: email, password: password, name: name);
+      final data = await repo.register(
+        email: email,
+        password: password,
+        name: name,
+        phone: phone,
+        role: role,
+        doctorProfile: doctorProfile,
+        patientProfile: patientProfile,
+      );
       await repo.persistSession(data);
       state = AuthState(status: AuthStatus.authenticated, user: data.user);
     } catch (e) {
@@ -185,9 +207,68 @@ final dashboardProvider = FutureProvider<DashboardData>((ref) {
   return ref.watch(patientRepositoryProvider).getDashboard();
 });
 
-final timelineProvider = FutureProvider<List<TimelineItem>>((ref) {
-  return ref.watch(recordsRepositoryProvider).timeline();
+final schedulesProvider = FutureProvider<List<MedicationSchedule>>((ref) {
+  return ref.watch(medicationRepositoryProvider).listSchedules();
 });
+
+final todayDosesProvider = FutureProvider<List<DoseOccurrence>>((ref) {
+  return ref.watch(medicationRepositoryProvider).todayDoses();
+});
+
+final upcomingDosesProvider = FutureProvider<List<DoseOccurrence>>((ref) {
+  return ref.watch(medicationRepositoryProvider).upcomingDoses();
+});
+
+final medicationHistoryProvider = FutureProvider<DoseHistory>((ref) {
+  return ref.watch(medicationRepositoryProvider).history();
+});
+
+final scheduleDetailProvider = FutureProvider.family<MedicationSchedule, String>((ref, id) {
+  return ref.watch(medicationRepositoryProvider).getSchedule(id);
+});
+
+/// Bridges loaded doses to the platform [ReminderScheduler].
+///
+/// Deliberately triggered by the UI after doses load rather than by a
+/// background isolate: web notifications can only be delivered while the app
+/// is running, and the honest behaviour is to say so in the UI.
+class ReminderSync {
+  ReminderSync(this._ref);
+
+  final Ref _ref;
+
+  Future<void> syncFromDoses(Iterable<DoseOccurrence> doses) async {
+    final scheduler = _ref.read(reminderSchedulerProvider);
+    if (!scheduler.supportsScheduling) return;
+    await scheduler.cancelAll();
+    final now = DateTime.now();
+    for (final dose in doses) {
+      final when = dose.scheduledFor;
+      if (dose.isRecorded || when == null || !when.isAfter(now)) continue;
+      await scheduler.schedule(
+        id: dose.id,
+        title: 'Time for ${dose.scheduleName ?? 'your medicine'}',
+        body: [
+          if (dose.strength != null) dose.strength,
+          if (dose.doseInstructions != null) dose.doseInstructions,
+        ].whereType<String>().join(' • ').ifEmpty('Open the wallet to mark it taken or skipped.'),
+        when: when,
+      );
+    }
+  }
+
+  Future<bool> enable() async {
+    final scheduler = _ref.read(reminderSchedulerProvider);
+    if (!scheduler.supportsScheduling) return false;
+    return scheduler.requestPermission();
+  }
+}
+
+extension on String {
+  String ifEmpty(String fallback) => isEmpty ? fallback : this;
+}
+
+final reminderSyncProvider = Provider<ReminderSync>((ref) => ReminderSync(ref));
 
 final documentsProvider = FutureProvider.autoDispose<List<DocumentSummary>>((ref) async {
   final result = await ref.watch(documentsRepositoryProvider).list();

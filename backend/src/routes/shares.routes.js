@@ -35,6 +35,12 @@ router.get('/:id', asyncHandler(async (req, res) => {
   return ok(res, shareService.shareWithHistory(grant));
 }));
 
+/** Access history for one share — owning patient only. */
+router.get('/:id/access-history', asyncHandler(async (req, res) => {
+  const grant = await shareService.getPatientShare(req.user._id, req.params.id);
+  return ok(res, shareService.shareAccessHistory(grant));
+}));
+
 router.post('/:id/revoke', validate({ body: z.object({ reason: z.string().max(200).optional() }) }), asyncHandler(async (req, res) => {
   const grant = await shareService.revokeShare(req.user, req.params.id, { reason: req.body.reason, req });
   return ok(res, shareService.shareWithHistory(grant));

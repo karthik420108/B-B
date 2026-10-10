@@ -8,6 +8,7 @@ router.use('/auth', require('./auth.routes'));
 router.use('/patient', require('./patient.routes'));
 router.use('/documents', require('./documents.routes'));
 router.use('/records', require('./records.routes'));
+router.use('/medications', require('./medications.routes'));
 router.use('/ai', require('./ai.routes'));
 router.use('/shares', require('./shares.routes'));
 router.use('/share', require('./share.routes'));

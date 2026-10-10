@@ -11,5 +11,8 @@ module.exports = {
   Notification: require('./Notification'),
   Appointment: require('./Appointment'),
   ExtractionJob: require('./ExtractionJob'),
+  DoctorConversation: require('./DoctorConversation'),
+  MedicationSchedule: require('./MedicationSchedule'),
+  MedicationDose: require('./MedicationDose'),
   ...require('./clinical'),
 };

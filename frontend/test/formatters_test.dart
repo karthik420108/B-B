@@ -46,11 +46,54 @@ void main() {
 
   group('friendlyError', () {
     test('unwraps typed API errors and generic messages', () {
-      final api = ApiException(statusCode: 403, code: 'FORBIDDEN', message: 'Not authorized');
-      expect(friendlyError(api), 'Not authorized');
+      final api = ApiException(statusCode: 400, code: 'VALIDATION', message: 'Missing field');
+      expect(friendlyError(api), 'Missing field');
 
       final generic = StateError('boom');
       expect(friendlyError(generic), 'Bad state: boom');
+    });
+
+    test('adds an actionable hint to role-forbidden errors', () {
+      final api = ApiException(
+        statusCode: 403,
+        code: 'FORBIDDEN',
+        message: 'Your account role cannot access this resource.',
+      );
+      final msg = friendlyError(api);
+      expect(msg, contains('Your account role cannot access this resource.'));
+      expect(msg, contains('sign out and sign in with the correct account'));
+    });
+  });
+
+  group('proposedRecordCount', () {
+    test('sums the extraction stats the backend actually returns', () {
+      // Real shape of `data.extraction` from POST /api/documents.
+      final extraction = <String, dynamic>{
+        'status': 'extracted',
+        'stats': {'observations': 1, 'conditions': 2, 'allergies': 0, 'medications': 1, 'encounters': 1},
+        'warnings': <dynamic>[],
+        'reviewNotes': <dynamic>[],
+        'textSource': 'pdf-text',
+        'ocrConfidence': null,
+      };
+      expect(proposedRecordCount(extraction), 5);
+    });
+
+    test('never throws on the object shape that broke the upload screen', () {
+      // Regression: this used to be cast to `List?` -> TypeError.
+      expect(proposedRecordCount({'status': 'failed', 'error': 'nope'}), 0);
+      expect(proposedRecordCount(null), 0);
+      expect(proposedRecordCount({'status': 'skipped', 'reason': 'already extracted'}), 0);
+      expect(proposedRecordCount(<dynamic>[{}, {}]), 2);
+    });
+  });
+
+  group('extractionFailure', () {
+    test('surfaces the reason only when extraction failed', () {
+      expect(extractionFailure({'status': 'failed', 'error': 'OCR exploded'}), 'OCR exploded');
+      expect(extractionFailure({'status': 'failed'}), 'Extraction failed.');
+      expect(extractionFailure({'status': 'extracted'}), isNull);
+      expect(extractionFailure(null), isNull);
     });
   });
 }

@@ -6,7 +6,7 @@ class PatientShell extends StatelessWidget {
 
   final Widget child;
 
-  static const _tabs = ['/home', '/schedule', '/documents', '/assistant', '/health'];
+  static const _tabs = ['/home', '/reminders', '/documents', '/assistant', '/health'];
 
   @override
   Widget build(BuildContext context) {
@@ -29,9 +29,9 @@ class PatientShell extends StatelessWidget {
             label: 'Home',
           ),
           NavigationDestination(
-            icon: Icon(Icons.calendar_today_outlined),
-            selectedIcon: Icon(Icons.calendar_month_rounded),
-            label: 'Schedule',
+            icon: Icon(Icons.alarm_outlined),
+            selectedIcon: Icon(Icons.alarm_rounded),
+            label: 'Reminders',
           ),
           NavigationDestination(
             icon: Icon(Icons.folder_outlined),
@@ -52,4 +52,4 @@ class PatientShell extends StatelessWidget {
       ),
     );
   }
-}
+}

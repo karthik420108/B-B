@@ -15,6 +15,7 @@ class HomeScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final auth = ref.watch(authProvider);
     final dashboard = ref.watch(dashboardProvider);
+    final schedules = ref.watch(schedulesProvider);
     final userName = auth.user?.name.split(' ').first ?? 'there';
 
     return Scaffold(
@@ -36,7 +37,10 @@ class HomeScreen extends ConsumerWidget {
           onReady: (data) => ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              _QuickActions(onCounts: data.counts),
+              _QuickActions(
+                onCounts: data.counts,
+                reminderCount: schedules.value?.where((s) => s.isActive).length ?? 0,
+              ),
               const SizedBox(height: 16),
               if (data.medicationAlerts != null && (data.medicationAlerts!.interactions.isNotEmpty || data.medicationAlerts!.duplicates.isNotEmpty)) ...[
                 _MedicationAlertCard(
@@ -90,12 +94,12 @@ class HomeScreen extends ConsumerWidget {
 }
 
 class _QuickActions extends StatelessWidget {
-  const _QuickActions({required this.onCounts});
+  const _QuickActions({required this.onCounts, required this.reminderCount});
   final Map<String, int> onCounts;
+  final int reminderCount;
 
   @override
   Widget build(BuildContext context) {
-    final records = onCounts['records'] ?? 0;
     final docs = onCounts['documents'] ?? 0;
     final shares = onCounts['shares'] ?? 0;
 
@@ -103,10 +107,10 @@ class _QuickActions extends StatelessWidget {
       children: [
         Expanded(
           child: _StatCard(
-            icon: Icons.description_outlined,
-            label: 'Records',
-            value: '$records',
-            onTap: () => context.go('/timeline'),
+            icon: Icons.alarm_outlined,
+            label: 'Reminders',
+            value: '$reminderCount',
+            onTap: () => context.go('/reminders'),
           ),
         ),
         const SizedBox(width: 12),

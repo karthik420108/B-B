@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../models/models.dart';
 import '../../providers/providers.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/register_screen.dart';
@@ -9,7 +10,11 @@ import '../../features/onboarding/onboarding_screen.dart';
 import '../../features/splash/splash_screen.dart';
 import '../../features/shell/patient_shell.dart';
 import '../../features/home/home_screen.dart';
-import '../../features/schedule/schedule_screen.dart';
+import '../../features/reminders/reminders_screen.dart';
+import '../../features/reminders/add_medication_screen.dart';
+import '../../features/reminders/schedule_detail_screen.dart';
+import '../../features/reminders/history_screen.dart';
+import '../../features/reminders/prescription_extract_screen.dart';
 import '../../features/documents/documents_screen.dart';
 import '../../features/documents/document_detail_screen.dart';
 import '../../features/documents/upload_screen.dart';
@@ -30,6 +35,7 @@ import '../../features/settings/settings_screen.dart';
 import '../../features/notifications/notifications_screen.dart';
 import '../../features/doctor/doctor_home_screen.dart';
 import '../../features/doctor/doctor_bundle_screen.dart';
+import '../../features/doctor/doctor_document_view_screen.dart';
 import '../../features/doctor/pending_verification_screen.dart';
 
 const _publicPaths = {'/login', '/register', '/forgot-password', '/onboarding'};
@@ -86,12 +92,16 @@ GoRouter createRouter(WidgetRef ref) {
         builder: (context, state, child) => PatientShell(child: child),
         routes: [
           GoRoute(path: '/home', builder: (c, s) => const HomeScreen()),
-          GoRoute(path: '/schedule', builder: (c, s) => const ScheduleScreen()),
+          GoRoute(path: '/reminders', builder: (c, s) => const RemindersScreen()),
           GoRoute(path: '/documents', builder: (c, s) => const DocumentsScreen()),
           GoRoute(path: '/assistant', builder: (c, s) => const AssistantScreen()),
           GoRoute(path: '/health', builder: (c, s) => const HealthHubScreen()),
         ],
       ),
+      GoRoute(path: '/reminders/add', builder: (c, s) => const AddMedicationScreen()),
+      GoRoute(path: '/reminders/history', builder: (c, s) => const MedicationHistoryScreen()),
+      GoRoute(path: '/reminders/extract', builder: (c, s) => PrescriptionExtractScreen(documentId: s.uri.queryParameters['documentId'])),
+      GoRoute(path: '/reminders/schedule/:id', builder: (c, s) => ScheduleDetailScreen(id: s.pathParameters['id']!)),
       GoRoute(path: '/documents/upload', builder: (c, s) => const UploadScreen()),
       GoRoute(path: '/documents/:id', builder: (c, s) => DocumentDetailScreen(id: s.pathParameters['id']!)),
       GoRoute(path: '/documents/:id/review', builder: (c, s) => ReviewScreen(id: s.pathParameters['id']!)),
@@ -110,6 +120,14 @@ GoRouter createRouter(WidgetRef ref) {
       GoRoute(path: '/doctor', builder: (c, s) => const DoctorHomeScreen()),
       GoRoute(path: '/doctor/pending', builder: (c, s) => const PendingVerificationScreen()),
       GoRoute(path: '/doctor/:token', builder: (c, s) => DoctorBundleScreen(token: s.pathParameters['token']!)),
+      GoRoute(
+        path: '/doctor/:token/document/:docId',
+        builder: (c, s) => DoctorDocumentViewScreen(
+          token: s.pathParameters['token']!,
+          docId: s.pathParameters['docId']!,
+          initialDoc: s.extra is DocumentSummary ? s.extra as DocumentSummary : null,
+        ),
+      ),
     ],
   );
-}
+}

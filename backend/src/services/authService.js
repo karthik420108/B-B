@@ -64,7 +64,7 @@ async function issueTokens(user, userAgent) {
   return { accessToken, refreshToken, expiresIn: config.jwt.accessTtl };
 }
 
-async function register({ email, password, name, role = 'patient', phone, doctorProfile } = {}, { req = null } = {}) {
+async function register({ email, password, name, role = 'patient', phone, doctorProfile, patientProfile } = {}, { req = null } = {}) {
   assertPassword(password);
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw badRequest('A valid email address is required.');
   if (!name || name.trim().length < 2) throw badRequest('A name is required.');
@@ -77,7 +77,12 @@ async function register({ email, password, name, role = 'patient', phone, doctor
   const user = await User.create({ email: String(email).toLowerCase(), passwordHash, name: name.trim(), role, phone });
 
   if (role === 'patient') {
-    await PatientProfile.create({ user: user._id });
+    await PatientProfile.create({
+      user: user._id,
+      dateOfBirth: patientProfile?.dateOfBirth ? new Date(patientProfile.dateOfBirth) : undefined,
+      bloodGroup: patientProfile?.bloodGroup || 'unknown',
+      sex: patientProfile?.sex || 'unknown',
+    });
   } else {
     await DoctorProfile.create({
       user: user._id,

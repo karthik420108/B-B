@@ -223,3 +223,91 @@ test('doctor verification status is returned at login', async () => {
   const res = await h.login(doctor.email, doctor.password);
   assert.equal(res.user.doctorVerification, 'unverified');
 });
+
+test('inspectToken returns status and isActive', async () => {
+  const { patient, docs } = await patientWithDocs();
+  const share = await h.request(h.app).post('/api/shares').set('Authorization', `Bearer ${patient.accessToken}`)
+    .send({ documentIds: [docs[0].id], expiresInMinutes: 60 });
+  const inspect = await h.request(h.app).get(`/api/share/${share.body.data.token}/inspect`);
+  assert.equal(inspect.status, 200);
+  assert.equal(inspect.body.data.valid, true);
+  assert.equal(inspect.body.data.status, 'active');
+  assert.equal(inspect.body.data.isActive, true);
+});
+
+test('doctor can stream document file by shareId within scope, denied out of scope or revoked', async () => {
+  const { patient, docs } = await patientWithDocs();
+  const doctor = await verifiedDoctor();
+  const share = await h.request(h.app).post('/api/shares').set('Authorization', `Bearer ${patient.accessToken}`)
+    .send({ documentIds: [docs[0].id, docs[1].id], includeAll: false, expiresInMinutes: 60, doctorUserId: doctor.user.id });
+  const shareId = share.body.data.share.id;
+
+  // Stream shared document
+  const fileRes = await h.request(h.app).get(`/api/doctor/shares/${shareId}/documents/${docs[0].id}/file`).set('Authorization', `Bearer ${doctor.accessToken}`);
+  assert.equal(fileRes.status, 200);
+
+  // Unshared document (docs[2]) must be denied
+  const unsharedRes = await h.request(h.app).get(`/api/doctor/shares/${shareId}/documents/${docs[2].id}/file`).set('Authorization', `Bearer ${doctor.accessToken}`);
+  assert.equal(unsharedRes.status, 403);
+
+  // Revoke share
+  await h.request(h.app).post(`/api/shares/${shareId}/revoke`).set('Authorization', `Bearer ${patient.accessToken}`).send({ reason: 'testing' });
+
+  // Stream after revoke must be denied
+  const revokedRes = await h.request(h.app).get(`/api/doctor/shares/${shareId}/documents/${docs[0].id}/file`).set('Authorization', `Bearer ${doctor.accessToken}`);
+  assert.equal(revokedRes.status, 403);
+});
+
+test('doctor AI assistant answers grounded in authorized scope and denies access when revoked', async () => {
+  const { patient, docs } = await patientWithDocs();
+  const doctor = await verifiedDoctor();
+  const share = await h.request(h.app).post('/api/shares').set('Authorization', `Bearer ${patient.accessToken}`)
+    .send({ documentIds: [docs[0].id, docs[1].id], includeAll: false, expiresInMinutes: 60, doctorUserId: doctor.user.id });
+  const shareId = share.body.data.share.id;
+  const token = share.body.data.token;
+
+  // Doctor AI query via shareId
+  const aiRes = await h.request(h.app).post(`/api/doctor/shares/${shareId}/ai/ask`)
+    .set('Authorization', `Bearer ${doctor.accessToken}`)
+    .send({ question: 'What are the sodium test results?' });
+  assert.equal(aiRes.status, 200);
+  assert.equal(aiRes.body.data.grounded, true);
+  assert.ok(aiRes.body.data.answer.includes('Sodium'));
+  assert.ok(aiRes.body.data.citations.length > 0);
+
+  // Citations only refer to shared documents
+  const citedDocIds = aiRes.body.data.citations.map((c) => c.documentId).filter(Boolean);
+  assert.ok(!citedDocIds.includes(docs[2].id), 'unshared doc must not be cited');
+
+  // Token-based doctor AI query
+  const tokenAiRes = await h.request(h.app).post(`/api/share/${token}/ai/ask`)
+    .set('Authorization', `Bearer ${doctor.accessToken}`)
+    .send({ question: 'Summarize the available medical history.' });
+  assert.equal(tokenAiRes.status, 200);
+
+  // Different doctor cannot query
+  const otherDoctor = await verifiedDoctor();
+  const diffDoctorRes = await h.request(h.app).post(`/api/doctor/shares/${shareId}/ai/ask`)
+    .set('Authorization', `Bearer ${otherDoctor.accessToken}`)
+    .send({ question: 'What are the test results?' });
+  assert.equal(diffDoctorRes.status, 403);
+
+  // Revoke share
+  await h.request(h.app).post(`/api/shares/${shareId}/revoke`).set('Authorization', `Bearer ${patient.accessToken}`).send({ reason: 'revoked' });
+
+  // Denied after revocation
+  const revokedAi = await h.request(h.app).post(`/api/doctor/shares/${shareId}/ai/ask`)
+    .set('Authorization', `Bearer ${doctor.accessToken}`)
+    .send({ question: 'What are the test results?' });
+  assert.equal(revokedAi.status, 403);
+});
+
+test('doctor can retrieve their identification QR info', async () => {
+  const doctor = await verifiedDoctor();
+  const res = await h.request(h.app).get('/api/doctor/me/qr').set('Authorization', `Bearer ${doctor.accessToken}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.body.data.type, 'doctor');
+  assert.equal(res.body.data.doctorId, doctor.user.id);
+  assert.equal(res.body.data.name, doctor.user.name);
+  assert.equal(res.body.data.verification, 'verified');
+});

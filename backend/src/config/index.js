@@ -54,13 +54,24 @@ const config = {
     cacheDir: path.resolve(__dirname, '../..', process.env.OCR_CACHE_DIR || './.ocr-cache'),
   },
   maxUploadBytes: parseInt(process.env.MAX_UPLOAD_MB || '25', 10) * 1024 * 1024,
+  medication: {
+    /** How long after a dose's scheduled time it can still be marked Taken/Skipped. */
+    trackingWindowMinutes: parseInt(process.env.MED_TRACKING_WINDOW_MINUTES || '180', 10),
+    /** How early a dose is surfaced as "Due" before its scheduled time. */
+    dueWindowMinutes: parseInt(process.env.MED_DUE_WINDOW_MINUTES || '15', 10),
+    /** Rolling window of future occurrences generated/maintained per schedule. */
+    horizonDays: parseInt(process.env.MED_HORIZON_DAYS || '30', 10),
+  },
   interactionDataset: process.env.INTERACTION_DATASET === ''
     ? ''
     : path.resolve(__dirname, '../..', process.env.INTERACTION_DATASET || './data/interactions.json'),
   rateLimit: {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
     max: parseInt(process.env.RATE_LIMIT_MAX || '300', 10),
-    sensitiveMax: parseInt(process.env.SENSITIVE_RATE_LIMIT_MAX || '20', 10),
+    /** Login / register / password reset / token refresh - strict, brute-force surface. */
+    authMax: parseInt(process.env.AUTH_RATE_LIMIT_MAX || '20', 10),
+    /** Uploads, extraction, sharing and AI - normal use spends a lot of these. */
+    sensitiveMax: parseInt(process.env.SENSITIVE_RATE_LIMIT_MAX || '100', 10),
   },
   isTest: process.env.NODE_ENV === 'test',
 };

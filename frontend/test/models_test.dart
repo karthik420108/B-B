@@ -125,17 +125,90 @@ void main() {
     });
   });
 
-  group('TimelineItem', () {
-    test('marks undated items explicitly', () {
-      final item = TimelineItem.fromJson({
-        'kind': 'observation',
-        'id': 'o9',
-        'title': 'HbA1c',
-        'dateUnknown': true,
+  group('MedicationSchedule', () {
+    test('parses reminder times and treats dates as calendar dates', () {
+      final schedule = MedicationSchedule.fromJson({
+        'id': 's1',
+        'name': 'Metformin',
+        'status': 'ACTIVE',
+        'frequency': 'twice_daily',
+        'reminderTimes': ['08:00', '20:00'],
+        'strength': '500 mg',
+        'startDate': '2026-01-15',
+        'sourceType': 'PRESCRIPTION',
+        'sourceDocument': 'd1',
       });
-      expect(item.date, isNull);
-      expect(item.dateUnknown, isTrue);
-      expect(item.kind, 'observation');
+      expect(schedule.reminderTimes, ['08:00', '20:00']);
+      expect(schedule.isActive, isTrue);
+      expect(schedule.fromPrescription, isTrue);
+      // Date-only values must not shift across timezones.
+      expect(schedule.startDate, DateTime(2026, 1, 15));
+      expect(schedule.weekdays, isEmpty);
+    });
+  });
+
+  group('DoseOccurrence', () {
+    test('explains derived status and disables actions once recorded', () {
+      final taken = DoseOccurrence.fromJson({
+        'id': 'dose1',
+        'scheduleId': 's1',
+        'scheduledFor': '2026-01-15T08:00:00.000Z',
+        'status': 'TAKEN',
+        'recordedStatus': 'TAKEN',
+      });
+      expect(taken.isTaken, isTrue);
+      expect(taken.canAct, isFalse);
+
+      final missed = DoseOccurrence.fromJson({
+        'id': 'dose2',
+        'scheduleId': 's1',
+        'scheduledFor': '2026-01-15T08:00:00.000Z',
+        'status': 'MISSED',
+        'recordedStatus': 'MISSED',
+      });
+      expect(missed.isMissed, isTrue);
+      expect(missed.canAct, isTrue, reason: 'a missed dose can still be recorded late');
+    });
+  });
+
+  group('PrescriptionExtraction', () {
+    test('surfaces candidates with their uncertainty and source', () {
+      final extraction = PrescriptionExtraction.fromJson({
+        'document': {'id': 'd1', 'originalName': 'rx.pdf', 'category': 'prescription'},
+        'textSource': 'ocr',
+        'ocrConfidence': 0.82,
+        'candidates': [
+          {
+            'name': 'Amlodipine',
+            'strength': '5 mg',
+            'uncertainFields': ['frequency'],
+            'confidence': 0.6,
+            'sourceSnippet': '1. Amlodipine 5 mg',
+          }
+        ],
+        'note': 'Review every field and confirm.',
+      });
+      expect(extraction.documentId, 'd1');
+      expect(extraction.textSource, 'ocr');
+      expect(extraction.ocrConfidence, closeTo(0.82, 0.001));
+      expect(extraction.candidates, hasLength(1));
+      expect(extraction.candidates.first.hasUncertainty, isTrue);
+      expect(extraction.candidates.first.sourceSnippet, contains('Amlodipine'));
+    });
+  });
+
+  group('DoseHistory', () {
+    test('keeps the missed-dose disclaimer', () {
+      final history = DoseHistory.fromJson({
+        'items': [
+          {'id': 'd1', 'scheduleId': 's1', 'status': 'MISSED'}
+        ],
+        'total': 1,
+        'disclaimer': 'A "Missed" entry is not proof the medicine was not taken.',
+      });
+      expect(history.items, hasLength(1));
+      expect(history.total, 1);
+      expect(history.disclaimer, contains('not proof'));
     });
   });
 }

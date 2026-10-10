@@ -59,10 +59,15 @@ class ErrorPanel extends StatelessWidget {
             Text(message, textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
             if (onRetry != null) ...[
               const SizedBox(height: 16),
-              OutlinedButton.icon(
-                onPressed: onRetry,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Try again'),
+              // Scale the retry button down when the panel is given very little
+              // room (narrow panes, small dialogs) instead of overflowing.
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: OutlinedButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Try again'),
+                ),
               ),
             ],
           ],
